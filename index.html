@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>보고 생각하고 궁금해요</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="workspace">
+      <section class="role-view" id="roleView">
+        <div class="backend-status is-checking" id="backendStatus" role="status" aria-live="polite">
+          <span class="backend-status-dot" aria-hidden="true"></span>
+          <span id="backendStatusText">연결 확인</span>
+        </div>
+        <button class="role-button" id="teacherRoleButton" type="button">교사</button>
+        <button class="role-button" id="studentRoleButton" type="button">학생</button>
+      </section>
+
+      <section class="app-view" id="teacherView" hidden>
+        <header class="view-head">
+          <h1>결과</h1>
+          <button class="secondary-button" data-change-role type="button">처음으로</button>
+        </header>
+
+        <div class="toolbar">
+          <strong><span id="responseCount">0</span>개</strong>
+          <div class="button-row">
+            <button class="secondary-button" id="copyAllButton" type="button">복사</button>
+            <button class="danger-button" id="clearAllButton" type="button">비우기</button>
+          </div>
+        </div>
+
+        <div class="empty-state" id="emptyState">아직 없습니다.</div>
+        <div class="response-list" id="responseList"></div>
+      </section>
+
+      <section class="app-view" id="studentView" hidden>
+        <header class="view-head">
+          <h1 id="studentStepTitle">모둠 이름</h1>
+          <div class="student-top-actions">
+            <button class="secondary-button" id="topPrevButton" type="button">이전</button>
+            <button class="primary-button" id="topNextButton" type="button">다음</button>
+          </div>
+        </header>
+
+        <form id="studentForm">
+          <section class="student-step" data-step="group">
+            <div class="group-buttons" id="groupButtons" aria-label="모둠 선택">
+              <button class="group-button" type="button" data-group="1">1모둠</button>
+              <button class="group-button" type="button" data-group="2">2모둠</button>
+              <button class="group-button" type="button" data-group="3">3모둠</button>
+              <button class="group-button" type="button" data-group="4">4모둠</button>
+              <button class="group-button" type="button" data-group="5">5모둠</button>
+              <button class="group-button" type="button" data-group="6">6모둠</button>
+            </div>
+          </section>
+
+          <section class="student-step" data-step="see" hidden>
+            <div class="item-list" id="seeList"></div>
+          </section>
+
+          <section class="student-step" data-step="think" hidden>
+            <div class="item-list chain-list" id="thinkList"></div>
+          </section>
+
+          <section class="student-step" data-step="wonder" hidden>
+            <div class="item-list chain-list" id="wonderList"></div>
+          </section>
+
+          <section class="student-step" data-step="review" hidden>
+            <div class="item-list chain-list" id="reviewList"></div>
+          </section>
+        </form>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" id="confirmModal" hidden>
+      <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+        <h2 id="confirmModalTitle">확인</h2>
+        <div class="modal-sentence-list" id="modalSentenceList"></div>
+        <div class="action-bar modal-actions">
+          <button class="secondary-button" id="modalBackButton" type="button">고치기</button>
+          <button class="primary-button" id="modalSubmitButton" type="button">제출</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="/script.js"></script>
+  </body>
+</html>
