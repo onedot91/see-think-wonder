@@ -2,6 +2,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabaseTable = "stw_responses";
 const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
+const teacherPassword = "3300";
 
 const elements = {
   roleView: document.querySelector("#roleView"),
@@ -21,15 +22,17 @@ const elements = {
   thinkList: document.querySelector("#thinkList"),
   wonderList: document.querySelector("#wonderList"),
   reviewList: document.querySelector("#reviewList"),
-  responseCount: document.querySelector("#responseCount"),
   responseList: document.querySelector("#responseList"),
   emptyState: document.querySelector("#emptyState"),
-  copyAllButton: document.querySelector("#copyAllButton"),
-  clearAllButton: document.querySelector("#clearAllButton"),
   confirmModal: document.querySelector("#confirmModal"),
   modalSentenceList: document.querySelector("#modalSentenceList"),
   modalBackButton: document.querySelector("#modalBackButton"),
   modalSubmitButton: document.querySelector("#modalSubmitButton"),
+  teacherPasswordModal: document.querySelector("#teacherPasswordModal"),
+  teacherPasswordForm: document.querySelector("#teacherPasswordForm"),
+  teacherPasswordInput: document.querySelector("#teacherPasswordInput"),
+  teacherPasswordError: document.querySelector("#teacherPasswordError"),
+  teacherPasswordCancelButton: document.querySelector("#teacherPasswordCancelButton"),
 };
 
 let responses = [];
@@ -41,7 +44,7 @@ let isBackendOnline = false;
 
 initResponses();
 
-elements.teacherRoleButton.addEventListener("click", () => showTeacherView());
+elements.teacherRoleButton.addEventListener("click", () => openTeacherPasswordModal());
 elements.studentRoleButton.addEventListener("click", () => showStudentView());
 
 elements.changeRoleButtons.forEach((button) => {
@@ -96,6 +99,26 @@ elements.confirmModal.addEventListener("click", (event) => {
   }
 });
 
+elements.teacherPasswordForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitTeacherPassword();
+});
+
+elements.teacherPasswordCancelButton.addEventListener("click", () => {
+  closeTeacherPasswordModal();
+});
+
+elements.teacherPasswordInput.addEventListener("input", () => {
+  elements.teacherPasswordError.hidden = true;
+  elements.teacherPasswordError.textContent = "";
+});
+
+elements.teacherPasswordModal.addEventListener("click", (event) => {
+  if (event.target === elements.teacherPasswordModal) {
+    closeTeacherPasswordModal();
+  }
+});
+
 async function submitStudentResponse() {
   const seeItems = getSeeItems();
   const thoughts = getThoughtItems();
@@ -135,59 +158,40 @@ async function submitStudentResponse() {
   showRoleView();
 }
 
-elements.copyAllButton.addEventListener("click", async () => {
-  if (responses.length === 0) {
-    showToast("복사할 결과가 없습니다.");
-    return;
-  }
-
-  const text = responses
-    .map((item, index) => {
-      const seeItems = normalizeList(item.see);
-      const thinkItems = normalizeList(item.think);
-      const wonderItems = normalizeList(item.wonder);
-      return [
-        `${index + 1}. ${item.name}`,
-        ...seeItems.map((seeItem, itemIndex) => {
-          return `${itemIndex + 1}. ${seeItem}를 보고 ${thinkItems[itemIndex] || ""}라고 생각했어요. 그래서 ${
-            wonderItems[itemIndex] || ""
-          }가 궁금해요.`;
-        }),
-      ].join("\n");
-    })
-    .join("\n\n");
-
-  try {
-    await copyText(text);
-    showToast("복사했습니다.");
-  } catch {
-    showToast("복사하지 못했습니다.");
-  }
-});
-
-elements.clearAllButton.addEventListener("click", async () => {
-  if (responses.length === 0) {
-    showToast("비울 결과가 없습니다.");
-    return;
-  }
-
-  if (!window.confirm("모든 결과를 비울까요?")) return;
-
-  try {
-    await clearResponses();
-    renderResponses();
-    showToast("비웠습니다.");
-  } catch {
-    showToast("결과를 비우지 못했습니다.");
-  }
-});
-
 function showRoleView() {
   stopTeacherPolling();
   closeConfirmModal();
+  closeTeacherPasswordModal();
   elements.roleView.hidden = false;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
+}
+
+function openTeacherPasswordModal() {
+  elements.teacherPasswordInput.value = "";
+  elements.teacherPasswordError.hidden = true;
+  elements.teacherPasswordError.textContent = "";
+  elements.teacherPasswordModal.hidden = false;
+  elements.teacherPasswordInput.focus();
+}
+
+function closeTeacherPasswordModal() {
+  elements.teacherPasswordModal.hidden = true;
+  elements.teacherPasswordInput.value = "";
+  elements.teacherPasswordError.hidden = true;
+  elements.teacherPasswordError.textContent = "";
+}
+
+function submitTeacherPassword() {
+  if (elements.teacherPasswordInput.value === teacherPassword) {
+    closeTeacherPasswordModal();
+    showTeacherView();
+    return;
+  }
+
+  elements.teacherPasswordError.textContent = "비밀번호가 맞지 않습니다.";
+  elements.teacherPasswordError.hidden = false;
+  elements.teacherPasswordInput.select();
 }
 
 async function showTeacherView() {
@@ -222,13 +226,16 @@ function showStudentStep(step) {
   });
 
   const titles = {
-    group: "모둠",
-    see: "👀 무엇이 보이나요?",
-    think: "🤔 어떤 생각이 드나요?",
-    wonder: "❓ 무엇이 궁금한가요?",
-    review: "확인",
+    group: { icon: "", text: "모둠" },
+    see: { icon: "👀", text: "식물에서 무엇을 볼 수 있나요?" },
+    think: { icon: "🤔", text: "식물이 사는 곳에 어떤 도움이 될까요?" },
+    wonder: { icon: "❓", text: "더 알고 싶은 점은 무엇인가요?" },
+    review: { icon: "", text: "확인" },
   };
-  elements.studentStepTitle.textContent = titles[step];
+  const title = titles[step] || titles.group;
+  elements.studentStepTitle.innerHTML = title.icon
+    ? `<span class="step-title-icon" aria-hidden="true">${title.icon}</span><span class="step-title-text">${title.text}</span>`
+    : `<span class="step-title-text">${title.text}</span>`;
   updateStudentTopActions(step);
 
   if (activeSection) {
@@ -373,7 +380,7 @@ function addSeeRow(value = "") {
     <label class="routine-field">
       <span class="routine-label see-label">본 것</span>
       <span class="chain-block see-block simple-see-block">
-        <textarea class="see-item" rows="1" maxlength="80" placeholder="보이는 것" autocomplete="off">${escapeHtml(value)}</textarea>
+        <textarea class="see-item" rows="1" maxlength="80" placeholder="보이는 걸 적어주세요." autocomplete="off">${escapeHtml(value)}</textarea>
       </span>
     </label>
   `;
@@ -401,7 +408,7 @@ function renderThinkRows(seeItems) {
       <label class="routine-field">
         <span class="routine-label think-label">생각한 것</span>
         <span class="chain-block think-block">
-          <textarea class="think-item" rows="1" maxlength="120" placeholder="생각" autocomplete="off" data-index="${index}"></textarea>
+          <textarea class="think-item" rows="1" maxlength="120" placeholder="식물이 사는 곳에 어떤 도움이 될지 생각해 보세요." autocomplete="off" data-index="${index}"></textarea>
         </span>
       </label>
     `;
@@ -435,7 +442,7 @@ function renderWonderRows(seeItems, thoughts) {
       <label class="routine-field">
         <span class="routine-label wonder-label">궁금한 것</span>
         <span class="chain-block wonder-block">
-          <textarea class="wonder-item" rows="1" maxlength="120" placeholder="궁금한 점" autocomplete="off" data-index="${index}"></textarea>
+          <textarea class="wonder-item" rows="1" maxlength="120" placeholder="질문을 적어주세요." autocomplete="off" data-index="${index}"></textarea>
         </span>
       </label>
     `;
@@ -464,14 +471,14 @@ function renderReviewRows(seeItems, thoughts, wonderItems) {
         <div class="chain-block think-block">
           <p>${escapeHtml(thoughts[index])}</p>
         </div>
-        <span class="routine-suffix">라고 생각했어요.</span>
+        <span class="routine-suffix">라고 생각합니다.</span>
       </div>
       <div class="routine-field has-prefix">
         <span class="routine-prefix">그래서</span>
         <div class="chain-block wonder-block">
           <p>${escapeHtml(wonderItems[index])}</p>
         </div>
-        <span class="routine-suffix">이 궁금해요</span>
+        <span class="routine-suffix">가 궁금합니다.</span>
       </div>
     `;
     elements.reviewList.append(row);
@@ -527,11 +534,11 @@ function getWonderItems() {
 }
 
 function buildThinkSentences(seeItems, thoughts) {
-  return seeItems.map((seeItem, index) => `${seeItem}를 보고 ${thoughts[index]}라고 생각했어요.`);
+  return seeItems.map((seeItem, index) => `${seeItem}를 보고 ${thoughts[index]}라고 생각합니다.`);
 }
 
 function buildWonderSentences(thinkSentences, wonderItems) {
-  return thinkSentences.map((sentence, index) => `${sentence} 그래서 ${wonderItems[index]}가 궁금해요.`);
+  return thinkSentences.map((sentence, index) => `${sentence} 그래서 ${wonderItems[index]}가 궁금합니다.`);
 }
 
 function resetStudentForm() {
@@ -602,6 +609,8 @@ function updateBackendStatus(status, text) {
 
   elements.backendStatus.classList.remove("is-checking", "is-online", "is-offline");
   elements.backendStatus.classList.add(`is-${status}`);
+  elements.backendStatus.setAttribute("aria-label", text);
+  elements.backendStatus.setAttribute("title", text);
   elements.backendStatusText.textContent = text;
 }
 
@@ -650,6 +659,15 @@ async function clearResponses() {
 
   await supabaseRequest(`/${supabaseTable}?id=not.is.null`, { method: "DELETE" });
   responses = [];
+}
+
+async function deleteResponse(responseId) {
+  if (!isSupabaseReady()) {
+    throw new Error("Supabase is not configured");
+  }
+
+  await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(responseId)}`, { method: "DELETE" });
+  responses = responses.filter((item) => item.id !== responseId);
 }
 
 function isSupabaseReady() {
@@ -710,7 +728,6 @@ function fromSupabaseRow(row) {
 }
 
 function renderResponses() {
-  elements.responseCount.textContent = String(responses.length);
   elements.emptyState.hidden = responses.length > 0;
   elements.responseList.innerHTML = "";
 
@@ -754,12 +771,36 @@ function openTeacherGroupModal(groupName) {
     .map((item, index) => {
       return `
         <section class="teacher-response-set">
-          <h3>${index + 1}번째 제출</h3>
+          <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(item.id)}" aria-label="답변 비우기" title="비우기">
+            🗑️
+          </button>
           ${renderResponseChains(item)}
         </section>
       `;
     })
     .join("");
+
+  elements.modalSentenceList.querySelectorAll("[data-delete-response]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const responseId = button.dataset.deleteResponse;
+      if (!responseId || !window.confirm("이 답변을 비울까요?")) return;
+
+      try {
+        await deleteResponse(responseId);
+        renderResponses();
+        const remainingResponses = getResponsesByGroup(groupName);
+        if (remainingResponses.length === 0) {
+          closeConfirmModal();
+          showToast("비웠습니다.");
+          return;
+        }
+        openTeacherGroupModal(groupName);
+        showToast("비웠습니다.");
+      } catch {
+        showToast("답변을 비우지 못했습니다.");
+      }
+    });
+  });
 
   elements.confirmModal.hidden = false;
   elements.modalSubmitButton.focus();
@@ -789,8 +830,8 @@ function renderSentenceCard(seeItem, thought, wonderItem, index) {
       <span class="card-number">${index + 1}</span>
       <div class="sentence-lines">
         <p><span class="sentence-block see-block">${escapeHtml(seeItem)}</span> 를 보고</p>
-        <p><span class="sentence-block think-block">${escapeHtml(thought)}</span> 라고 생각했어요.</p>
-        <p><strong>그래서</strong> <span class="sentence-block wonder-block">${escapeHtml(wonderItem)}</span> 가 궁금해요.</p>
+        <p><span class="sentence-block think-block">${escapeHtml(thought)}</span> 라고 생각합니다.</p>
+        <p><strong>그래서</strong> <span class="sentence-block wonder-block">${escapeHtml(wonderItem)}</span> 가 궁금합니다.</p>
       </div>
     </article>
   `;

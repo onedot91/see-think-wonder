@@ -9,9 +9,9 @@
   <body>
     <main class="workspace">
       <section class="role-view" id="roleView">
-        <div class="backend-status is-checking" id="backendStatus" role="status" aria-live="polite">
+        <div class="backend-status is-checking" id="backendStatus" role="status" aria-live="polite" aria-label="연결 확인">
           <span class="backend-status-dot" aria-hidden="true"></span>
-          <span id="backendStatusText">연결 확인</span>
+          <span class="visually-hidden" id="backendStatusText">연결 확인</span>
         </div>
         <button class="role-button" id="teacherRoleButton" type="button">교사</button>
         <button class="role-button" id="studentRoleButton" type="button">학생</button>
@@ -22,14 +22,6 @@
           <h1>결과</h1>
           <button class="secondary-button" data-change-role type="button">처음으로</button>
         </header>
-
-        <div class="toolbar">
-          <strong><span id="responseCount">0</span>개</strong>
-          <div class="button-row">
-            <button class="secondary-button" id="copyAllButton" type="button">복사</button>
-            <button class="danger-button" id="clearAllButton" type="button">비우기</button>
-          </div>
-        </div>
 
         <div class="empty-state" id="emptyState">아직 없습니다.</div>
         <div class="response-list" id="responseList"></div>
@@ -77,12 +69,40 @@
 
     <div class="modal-backdrop" id="confirmModal" hidden>
       <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
-        <h2 id="confirmModalTitle">확인</h2>
-        <div class="modal-sentence-list" id="modalSentenceList"></div>
-        <div class="action-bar modal-actions">
-          <button class="secondary-button" id="modalBackButton" type="button">고치기</button>
-          <button class="primary-button" id="modalSubmitButton" type="button">제출</button>
+        <div class="modal-head">
+          <h2 id="confirmModalTitle">확인</h2>
+          <div class="modal-actions">
+            <button class="secondary-button" id="modalBackButton" type="button">수정하기</button>
+            <button class="primary-button" id="modalSubmitButton" type="button">제출</button>
+          </div>
         </div>
+        <div class="modal-sentence-list" id="modalSentenceList"></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="teacherPasswordModal" hidden>
+      <section class="confirm-modal password-modal" role="dialog" aria-modal="true" aria-labelledby="teacherPasswordTitle">
+        <div class="modal-head">
+          <h2 id="teacherPasswordTitle">비밀번호</h2>
+        </div>
+        <form class="password-form" id="teacherPasswordForm">
+          <label class="password-field">
+            <span>교사용 비밀번호를 입력해 주세요.</span>
+            <input
+              class="password-input"
+              id="teacherPasswordInput"
+              type="password"
+              inputmode="numeric"
+              autocomplete="current-password"
+              maxlength="4"
+            />
+          </label>
+          <p class="password-error" id="teacherPasswordError" aria-live="polite" hidden></p>
+          <div class="modal-actions">
+            <button class="secondary-button" id="teacherPasswordCancelButton" type="button">취소</button>
+            <button class="primary-button" id="teacherPasswordSubmitButton" type="submit">확인</button>
+          </div>
+        </form>
       </section>
     </div>
 
