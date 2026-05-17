@@ -87,7 +87,7 @@ p {
   grid-template-columns: repeat(2, 470px);
   justify-content: center;
   gap: 12px 40px;
-  min-height: calc(100vh - 56px);
+  min-height: calc(100dvh - 64px);
   align-content: center;
 }
 
@@ -885,7 +885,7 @@ button {
   display: grid;
   position: relative;
   gap: 14px;
-  padding: 26px 90px 26px 26px;
+  padding: 26px 122px 26px 26px;
   border: 3px solid #000000;
   border-radius: 24px;
   background: #f7f7f5;
@@ -909,9 +909,9 @@ button {
   line-height: 1;
 }
 
-.icon-delete-button {
+.icon-delete-button,
+.icon-move-button {
   position: absolute;
-  top: 18px;
   right: 18px;
   z-index: 1;
   display: inline-grid;
@@ -928,8 +928,30 @@ button {
   line-height: 1;
 }
 
-.icon-delete-button:hover {
+.icon-delete-button {
+  top: 18px;
+}
+
+.icon-move-button {
+  top: 92px;
+  width: 76px;
+  background: var(--block-mint);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.icon-delete-button:hover,
+.icon-move-button:hover {
   transform: translateY(-2px);
+}
+
+.teacher-tools-locked .teacher-response-set {
+  padding-right: 26px;
+}
+
+.teacher-tools-locked .icon-delete-button,
+.teacher-tools-locked .icon-move-button {
+  display: none;
 }
 
 .sentence-lines {
@@ -961,6 +983,62 @@ button {
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 18px 48px rgba(23, 33, 38, 0.18);
+}
+
+.move-group-modal {
+  width: min(720px, 94vw);
+  padding: 30px;
+  border: 3px solid #000000;
+  border-radius: 24px;
+  background: #ffffff;
+}
+
+.move-group-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding-bottom: 22px;
+  border-bottom: 2px solid #000000;
+}
+
+.move-group-head h2 {
+  margin: 0;
+  font-size: 2.7rem;
+  font-weight: 900;
+}
+
+.move-group-close {
+  min-height: 64px;
+  padding: 12px 24px;
+}
+
+.move-group-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 24px;
+}
+
+.move-group-button {
+  min-height: 112px;
+  border: 2px solid #000000;
+  border-radius: 18px;
+  background: var(--block-mint);
+  color: #000000;
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.move-group-button:disabled {
+  cursor: default;
+  background: #f1f1f1;
+  color: #9a9a9a;
+}
+
+.move-group-button:not(:disabled):hover {
+  background: #dceeb1;
+  transform: translateY(-2px);
 }
 
 .modal-head {
@@ -1054,48 +1132,6 @@ button {
   justify-content: flex-end;
   align-items: center;
   margin-top: 0;
-}
-
-.password-modal {
-  width: min(460px, 92vw);
-  padding: 34px;
-  overflow: visible;
-}
-
-.password-modal .modal-head {
-  position: static;
-  padding: 0 0 20px;
-}
-
-.password-form {
-  display: grid;
-  gap: 18px;
-}
-
-.password-field {
-  gap: 14px;
-  font-size: 1.5rem;
-}
-
-.password-input {
-  width: 100%;
-  min-height: 78px;
-  padding: 12px 18px;
-  border: 2px solid #000000;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #000000;
-  font-size: 2.4rem;
-  font-weight: 900;
-  letter-spacing: 0.18em;
-}
-
-.password-error {
-  min-height: 1.4em;
-  margin: -4px 0 0;
-  color: #96382f;
-  font-size: 1.25rem;
-  font-weight: 900;
 }
 
 .toast-stack {
@@ -1400,10 +1436,6 @@ textarea,
   background: #ffffff;
 }
 
-.confirm-modal.password-modal {
-  width: min(460px, 92vw);
-}
-
 .modal-head {
   border-bottom: 2px solid #000000;
 }
@@ -1502,11 +1534,4 @@ textarea,
     margin-right: 76px;
   }
 
-  .password-modal {
-    padding: 24px;
-  }
-
-  .password-input {
-    font-size: 2rem;
-  }
 }

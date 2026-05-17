@@ -2,14 +2,15 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabaseTable = "stw_responses";
 const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
-const teacherPassword = "3300";
 const seeItemCount = 2;
+const groupCount = 6;
 
 const elements = {
   roleView: document.querySelector("#roleView"),
   backendStatus: document.querySelector("#backendStatus"),
   backendStatusText: document.querySelector("#backendStatusText"),
   teacherView: document.querySelector("#teacherView"),
+  teacherTitle: document.querySelector("#teacherView h1"),
   studentView: document.querySelector("#studentView"),
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
   studentRoleButton: document.querySelector("#studentRoleButton"),
@@ -29,11 +30,9 @@ const elements = {
   modalSentenceList: document.querySelector("#modalSentenceList"),
   modalBackButton: document.querySelector("#modalBackButton"),
   modalSubmitButton: document.querySelector("#modalSubmitButton"),
-  teacherPasswordModal: document.querySelector("#teacherPasswordModal"),
-  teacherPasswordForm: document.querySelector("#teacherPasswordForm"),
-  teacherPasswordInput: document.querySelector("#teacherPasswordInput"),
-  teacherPasswordError: document.querySelector("#teacherPasswordError"),
-  teacherPasswordCancelButton: document.querySelector("#teacherPasswordCancelButton"),
+  moveGroupModal: document.querySelector("#moveGroupModal"),
+  moveGroupGrid: document.querySelector("#moveGroupGrid"),
+  moveGroupCancelButton: document.querySelector("#moveGroupCancelButton"),
 };
 
 let responses = [];
@@ -42,11 +41,24 @@ let currentStudentStep = "group";
 let modalMode = "student";
 let teacherPollId = null;
 let isBackendOnline = false;
+let pendingMove = null;
+let teacherToolsClickCount = 0;
+let teacherToolsUnlocked = false;
 
 initResponses();
 
-elements.teacherRoleButton.addEventListener("click", () => openTeacherPasswordModal());
+elements.teacherRoleButton.addEventListener("click", () => showTeacherView());
 elements.studentRoleButton.addEventListener("click", () => showStudentView());
+
+elements.teacherTitle.addEventListener("click", () => {
+  if (teacherToolsUnlocked) return;
+
+  teacherToolsClickCount += 1;
+  if (teacherToolsClickCount >= 5) {
+    teacherToolsUnlocked = true;
+    showToast("관리 버튼을 표시합니다.");
+  }
+});
 
 elements.changeRoleButtons.forEach((button) => {
   button.addEventListener("click", () => showRoleView());
@@ -109,23 +121,24 @@ elements.confirmModal.addEventListener("click", (event) => {
   }
 });
 
-elements.teacherPasswordForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  submitTeacherPassword();
+elements.moveGroupGrid.innerHTML = Array.from({ length: groupCount }, (_, index) => {
+  const groupNumber = index + 1;
+  return `<button class="move-group-button" type="button" data-move-target-group="${groupNumber}">${groupNumber}모둠</button>`;
+}).join("");
+
+elements.moveGroupGrid.querySelectorAll("[data-move-target-group]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    await submitMoveToGroup(Number(button.dataset.moveTargetGroup));
+  });
 });
 
-elements.teacherPasswordCancelButton.addEventListener("click", () => {
-  closeTeacherPasswordModal();
+elements.moveGroupCancelButton.addEventListener("click", () => {
+  closeMoveGroupModal();
 });
 
-elements.teacherPasswordInput.addEventListener("input", () => {
-  elements.teacherPasswordError.hidden = true;
-  elements.teacherPasswordError.textContent = "";
-});
-
-elements.teacherPasswordModal.addEventListener("click", (event) => {
-  if (event.target === elements.teacherPasswordModal) {
-    closeTeacherPasswordModal();
+elements.moveGroupModal.addEventListener("click", (event) => {
+  if (event.target === elements.moveGroupModal) {
+    closeMoveGroupModal();
   }
 });
 
@@ -171,37 +184,10 @@ async function submitStudentResponse() {
 function showRoleView() {
   stopTeacherPolling();
   closeConfirmModal();
-  closeTeacherPasswordModal();
+  closeMoveGroupModal();
   elements.roleView.hidden = false;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
-}
-
-function openTeacherPasswordModal() {
-  elements.teacherPasswordInput.value = "";
-  elements.teacherPasswordError.hidden = true;
-  elements.teacherPasswordError.textContent = "";
-  elements.teacherPasswordModal.hidden = false;
-  elements.teacherPasswordInput.focus();
-}
-
-function closeTeacherPasswordModal() {
-  elements.teacherPasswordModal.hidden = true;
-  elements.teacherPasswordInput.value = "";
-  elements.teacherPasswordError.hidden = true;
-  elements.teacherPasswordError.textContent = "";
-}
-
-function submitTeacherPassword() {
-  if (elements.teacherPasswordInput.value === teacherPassword) {
-    closeTeacherPasswordModal();
-    showTeacherView();
-    return;
-  }
-
-  elements.teacherPasswordError.textContent = "비밀번호가 맞지 않습니다.";
-  elements.teacherPasswordError.hidden = false;
-  elements.teacherPasswordInput.select();
 }
 
 async function showTeacherView() {
@@ -513,7 +499,9 @@ function openConfirmModal(seeItems, thoughts, wonderItems) {
 
 function closeConfirmModal() {
   modalMode = "student";
+  closeMoveGroupModal();
   elements.confirmModal.hidden = true;
+  elements.confirmModal.classList.remove("teacher-tools-locked");
   elements.modalSentenceList.innerHTML = "";
   elements.modalBackButton.hidden = false;
   elements.modalSubmitButton.textContent = "제출";
@@ -695,6 +683,36 @@ async function deleteResponse(responseId) {
   responses = responses.filter((item) => item.id !== responseId);
 }
 
+async function moveResponse(responseId, targetGroupName) {
+  if (!isSupabaseReady()) {
+    throw new Error("Supabase is not configured");
+  }
+
+  const originalResponse = responses.find((item) => item.id === responseId);
+  if (!originalResponse) {
+    throw new Error("Response not found");
+  }
+
+  const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(responseId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ name: targetGroupName }),
+  });
+  if (rows[0]) {
+    const updatedResponse = fromSupabaseRow(rows[0]);
+    responses = responses.map((item) => (item.id === responseId ? updatedResponse : item));
+    return;
+  }
+
+  const movedResponse = {
+    ...originalResponse,
+    id: createId(),
+    name: targetGroupName,
+  };
+  await addResponse(movedResponse);
+  await deleteResponse(responseId);
+}
+
 function isSupabaseReady() {
   return Boolean(supabaseUrl && supabaseAnonKey);
 }
@@ -758,7 +776,7 @@ function renderResponses() {
 
   const groupGrid = document.createElement("div");
   groupGrid.className = "teacher-group-grid";
-  groupGrid.innerHTML = Array.from({ length: 6 }, (_, index) => {
+  groupGrid.innerHTML = Array.from({ length: groupCount }, (_, index) => {
     const groupName = `${index + 1}모둠`;
     const groupResponses = getResponsesByGroup(groupName);
     const disabled = groupResponses.length === 0 ? "disabled" : "";
@@ -792,6 +810,7 @@ function openTeacherGroupModal(groupName) {
   document.querySelector("#confirmModalTitle").textContent = groupName;
   elements.modalBackButton.hidden = true;
   elements.modalSubmitButton.textContent = "닫기";
+  elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
   elements.modalSentenceList.innerHTML = groupResponses
     .map((item, index) => {
       return `
@@ -804,6 +823,28 @@ function openTeacherGroupModal(groupName) {
       `;
     })
     .join("");
+
+  elements.modalSentenceList.querySelectorAll(".teacher-response-set").forEach((set, index) => {
+    const response = groupResponses[index];
+    if (!response) return;
+
+    const moveButton = document.createElement("button");
+    moveButton.className = "icon-move-button";
+    moveButton.type = "button";
+    moveButton.dataset.moveResponse = response.id;
+    moveButton.setAttribute("aria-label", "답변 옮기기");
+    moveButton.title = "옮기기";
+    moveButton.textContent = "옮기기";
+    set.append(moveButton);
+  });
+
+  elements.modalSentenceList.querySelectorAll("[data-move-response]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const responseId = button.dataset.moveResponse;
+      if (!responseId) return;
+      openMoveGroupModal(responseId, groupName);
+    });
+  });
 
   elements.modalSentenceList.querySelectorAll("[data-delete-response]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -829,6 +870,47 @@ function openTeacherGroupModal(groupName) {
 
   elements.confirmModal.hidden = false;
   elements.modalSubmitButton.focus();
+}
+
+function openMoveGroupModal(responseId, currentGroupName) {
+  pendingMove = { responseId, currentGroupName };
+  elements.moveGroupGrid.querySelectorAll("[data-move-target-group]").forEach((button) => {
+    const targetGroupName = `${button.dataset.moveTargetGroup}모둠`;
+    button.disabled = targetGroupName === currentGroupName;
+  });
+  elements.moveGroupModal.hidden = false;
+  elements.moveGroupGrid.querySelector("[data-move-target-group]:not(:disabled)")?.focus();
+}
+
+function closeMoveGroupModal() {
+  pendingMove = null;
+  elements.moveGroupModal.hidden = true;
+}
+
+async function submitMoveToGroup(groupNumber) {
+  if (!pendingMove) return;
+
+  const { responseId, currentGroupName } = pendingMove;
+  const targetGroupName = `${groupNumber}모둠`;
+  if (targetGroupName === currentGroupName) {
+    showToast("이미 같은 모둠에 있습니다.");
+    return;
+  }
+
+  try {
+    await moveResponse(responseId, targetGroupName);
+    closeMoveGroupModal();
+    renderResponses();
+    const remainingResponses = getResponsesByGroup(currentGroupName);
+    if (remainingResponses.length === 0) {
+      closeConfirmModal();
+    } else {
+      openTeacherGroupModal(currentGroupName);
+    }
+    showToast(`${targetGroupName}으로 옮겼습니다.`);
+  } catch {
+    showToast("답변을 옮기지 못했습니다.");
+  }
 }
 
 function renderResponseChains(item) {

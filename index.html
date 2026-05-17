@@ -15,8 +15,8 @@
           <span class="visually-hidden" id="backendStatusText">연결 확인</span>
         </div>
         <img class="start-image" src="/start-page-cutout.png" alt="보기 생각하기 궁금해하기" />
-        <button class="role-button" id="teacherRoleButton" type="button">교사</button>
-        <button class="role-button" id="studentRoleButton" type="button">학생</button>
+        <button class="role-button" id="studentRoleButton" type="button">기록하기</button>
+        <button class="role-button" id="teacherRoleButton" type="button">결과 보기</button>
       </section>
 
       <section class="app-view" id="teacherView" hidden>
@@ -82,29 +82,13 @@
       </section>
     </div>
 
-    <div class="modal-backdrop" id="teacherPasswordModal" hidden>
-      <section class="confirm-modal password-modal" role="dialog" aria-modal="true" aria-labelledby="teacherPasswordTitle">
-        <div class="modal-head">
-          <h2 id="teacherPasswordTitle">비밀번호</h2>
+    <div class="modal-backdrop" id="moveGroupModal" hidden>
+      <section class="move-group-modal" role="dialog" aria-modal="true" aria-labelledby="moveGroupModalTitle">
+        <div class="move-group-head">
+          <h2 id="moveGroupModalTitle">옮길 모둠</h2>
+          <button class="secondary-button move-group-close" id="moveGroupCancelButton" type="button">취소</button>
         </div>
-        <form class="password-form" id="teacherPasswordForm">
-          <label class="password-field">
-            <span>교사용 비밀번호를 입력해 주세요.</span>
-            <input
-              class="password-input"
-              id="teacherPasswordInput"
-              type="password"
-              inputmode="numeric"
-              autocomplete="current-password"
-              maxlength="4"
-            />
-          </label>
-          <p class="password-error" id="teacherPasswordError" aria-live="polite" hidden></p>
-          <div class="modal-actions">
-            <button class="secondary-button" id="teacherPasswordCancelButton" type="button">취소</button>
-            <button class="primary-button" id="teacherPasswordSubmitButton" type="submit">확인</button>
-          </div>
-        </form>
+        <div class="move-group-grid" id="moveGroupGrid" aria-label="옮길 모둠 선택"></div>
       </section>
     </div>
 
