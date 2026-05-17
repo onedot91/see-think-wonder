@@ -67,6 +67,15 @@ elements.studentForm.addEventListener("input", (event) => {
   }
 });
 
+elements.studentForm.addEventListener("keydown", (event) => {
+  if (!(event.target instanceof HTMLTextAreaElement) || event.key !== "Enter" || event.isComposing) {
+    return;
+  }
+
+  event.preventDefault();
+  completeTextareaEntry(event.target);
+});
+
 elements.topPrevButton.addEventListener("click", () => {
   goToPreviousStudentStep();
 });
@@ -155,7 +164,7 @@ async function submitStudentResponse() {
   renderResponses();
   resetStudentForm();
   closeConfirmModal();
-  showToast("제출했습니다.");
+  showToast(`✅ ${response.name}이 제출했습니다!`);
   showRoleView();
 }
 
@@ -518,6 +527,21 @@ function resizeTextareas(container = document) {
   container.querySelectorAll("textarea").forEach((textarea) => {
     resizeTextarea(textarea);
   });
+}
+
+function completeTextareaEntry(textarea) {
+  const step = textarea.closest(".student-step");
+  const textareas = Array.from(step?.querySelectorAll("textarea") || []);
+  const currentIndex = textareas.indexOf(textarea);
+  const nextTextarea = textareas[currentIndex + 1];
+
+  if (nextTextarea) {
+    nextTextarea.focus();
+    return;
+  }
+
+  textarea.blur();
+  goToNextStudentStep();
 }
 
 function getSeeItems() {
@@ -886,16 +910,23 @@ async function copyText(text) {
 }
 
 function showToast(message) {
-  const previousToast = document.querySelector(".toast");
-  if (previousToast) previousToast.remove();
+  let toastStack = document.querySelector(".toast-stack");
+  if (!toastStack) {
+    toastStack = document.createElement("div");
+    toastStack.className = "toast-stack";
+    document.body.append(toastStack);
+  }
 
   const toast = document.createElement("div");
   toast.className = "toast";
   toast.setAttribute("role", "status");
   toast.textContent = message;
-  document.body.append(toast);
+  toastStack.append(toast);
 
   window.setTimeout(() => {
     toast.remove();
-  }, 2200);
+    if (toastStack.childElementCount === 0) {
+      toastStack.remove();
+    }
+  }, 4000);
 }
