@@ -3,6 +3,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabaseTable = "stw_responses";
 const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
 const teacherPassword = "3300";
+const seeItemCount = 2;
 
 const elements = {
   roleView: document.querySelector("#roleView"),
@@ -549,9 +550,9 @@ function resetStudentForm() {
   elements.thinkList.innerHTML = "";
   elements.wonderList.innerHTML = "";
   elements.reviewList.innerHTML = "";
-  addSeeRow();
-  addSeeRow();
-  addSeeRow();
+  for (let i = 0; i < seeItemCount; i += 1) {
+    addSeeRow();
+  }
   showStudentStep("group");
 }
 
