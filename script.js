@@ -3,9 +3,14 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabaseTable = "stw_responses";
 const supabaseSettingsTable = "stw_settings";
 const activeStepSettingId = "active_step";
+const activeModeSettingId = "active_mode";
 const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
 const studentCount = 23;
 const answerAccentCount = 3;
+const classModes = {
+  sequential: "순차 진행",
+  combined: "한 번에 작성",
+};
 const teacherSteps = {
   see: { label: "보기", empty: "미제출" },
   think: { label: "생각하기", empty: "미제출" },
@@ -16,11 +21,14 @@ const elements = {
   roleView: document.querySelector("#roleView"),
   backendStatus: document.querySelector("#backendStatus"),
   backendStatusText: document.querySelector("#backendStatusText"),
+  teacherModeView: document.querySelector("#teacherModeView"),
   teacherView: document.querySelector("#teacherView"),
   teacherTitle: document.querySelector("#teacherView h1"),
+  teacherModeTabs: document.querySelector("#teacherModeTabs"),
   teacherTopTabs: document.querySelector("#teacherTopTabs"),
   studentView: document.querySelector("#studentView"),
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
+  teacherModeChoiceButtons: document.querySelectorAll("[data-open-teacher-mode]"),
   studentRoleButton: document.querySelector("#studentRoleButton"),
   changeRoleButtons: document.querySelectorAll("[data-change-role]"),
   studentStepTitle: document.querySelector("#studentStepTitle"),
@@ -33,6 +41,7 @@ const elements = {
   seeList: document.querySelector("#seeList"),
   thinkList: document.querySelector("#thinkList"),
   wonderList: document.querySelector("#wonderList"),
+  combinedList: document.querySelector("#combinedList"),
   responseList: document.querySelector("#responseList"),
   emptyState: document.querySelector("#emptyState"),
   confirmModal: document.querySelector("#confirmModal"),
@@ -46,6 +55,7 @@ let selectedStudentNumber = "";
 let currentStudentStep = "student";
 let activeTeacherStep = "see";
 let activeClassStep = "see";
+let activeClassMode = null;
 let modalMode = "student";
 let teacherPollId = null;
 let studentStepPollId = null;
@@ -56,8 +66,14 @@ let teacherToolsUnlocked = false;
 initStudentButtons();
 initResponses();
 
-elements.teacherRoleButton.addEventListener("click", () => showTeacherView());
+elements.teacherRoleButton.addEventListener("click", () => showTeacherModeView());
 elements.studentRoleButton.addEventListener("click", () => showStudentView());
+
+elements.teacherModeChoiceButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    showTeacherView(button.dataset.openTeacherMode);
+  });
+});
 
 elements.teacherTitle.addEventListener("click", () => {
   if (teacherToolsUnlocked) return;
@@ -144,6 +160,10 @@ function loadSelectedStudentResponse() {
 }
 
 async function submitCurrentStudentStep() {
+  if (currentStudentStep === "combined") {
+    await submitCombinedStep();
+    return;
+  }
   if (currentStudentStep === "see") {
     await submitSeeStep();
     return;
@@ -155,6 +175,30 @@ async function submitCurrentStudentStep() {
   if (currentStudentStep === "wonder") {
     await submitWonderStep();
   }
+}
+
+async function submitCombinedStep() {
+  const combinedItem = getCombinedInputValues();
+  if (!getStudentName()) {
+    showToast("학생 번호를 입력해 주세요.");
+    return;
+  }
+  if (!isCompleteCombinedItem(combinedItem)) {
+    showToast("보기, 생각하기, 궁금해하기를 모두 적어 주세요.");
+    return;
+  }
+
+  try {
+    await appendCombinedStep(combinedItem);
+  } catch {
+    showToast("결과를 제출하지 못했습니다.");
+    return;
+  }
+
+  clearCombinedInputs();
+  renderResponses();
+  showToast(`${getStudentName()} 제출 완료`);
+  focusFirstCombinedInput();
 }
 
 async function submitSeeStep() {
@@ -226,17 +270,45 @@ function showRoleView() {
   stopStudentStepPolling();
   closeConfirmModal();
   elements.roleView.hidden = false;
+  elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
 }
 
-async function showTeacherView() {
+async function showTeacherModeView() {
+  stopTeacherPolling();
   stopStudentStepPolling();
+  closeConfirmModal();
+  activeClassMode = null;
+  try {
+    await saveClassModeSetting("waiting");
+  } catch {
+    showToast("대기 상태를 저장하지 못했습니다.");
+  }
+  elements.roleView.hidden = true;
+  elements.teacherModeView.hidden = false;
+  elements.teacherView.hidden = true;
+  elements.studentView.hidden = true;
+}
+
+async function showTeacherView(selectedMode = null) {
+  stopStudentStepPolling();
+  if (isClassMode(selectedMode)) {
+    activeClassMode = selectedMode;
+    try {
+      await saveActiveClassMode(selectedMode);
+    } catch {
+      showToast("모드를 저장하지 못했습니다.");
+    }
+  } else {
+    await refreshActiveClassMode({ renderStudent: false });
+  }
   await refreshActiveClassStep({ renderStudent: false });
   activeTeacherStep = activeClassStep;
   await refreshResponses();
   startTeacherPolling();
   elements.roleView.hidden = true;
+  elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = false;
   elements.studentView.hidden = true;
 }
@@ -245,9 +317,11 @@ function showStudentView() {
   stopTeacherPolling();
   resetStudentForm();
   elements.roleView.hidden = true;
+  elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = false;
   elements.studentNumberInput?.focus();
+  refreshActiveClassMode();
   refreshActiveClassStep();
   startStudentStepPolling();
 }
@@ -271,6 +345,8 @@ function showStudentStep(step) {
     see: { icon: "👀", text: "무엇을 볼 수 있나요?" },
     think: { icon: "🤔", text: "어떤 생각이 드나요?" },
     wonder: { icon: "❓", text: "더 알고 싶은 점은 무엇인가요?" },
+    combined: { icon: "✍", text: "한 번에 작성하기" },
+    waiting: { icon: "", text: "대기 중" },
   };
   const title = titles[step] || titles.student;
   elements.studentStepTitle.innerHTML = title.icon
@@ -291,20 +367,24 @@ function updateStudentTopActions(step) {
     see: { prev: false, next: "제출" },
     think: { prev: false, next: "제출" },
     wonder: { prev: false, next: "제출" },
+    combined: { prev: false, next: "제출" },
+    waiting: { prev: false, next: "대기 중", hideNext: true },
   };
   const action = topActionByStep[step] || topActionByStep.student;
 
   if (elements.topPrevButton) {
     elements.topPrevButton.hidden = !action.prev;
   }
+  elements.topNextButton.hidden = Boolean(action.hideNext);
   elements.topNextButton.textContent = action.next;
   updateStudentSubmitState();
 }
 
 function updateStudentSubmitState() {
-  const isAnswerStep = isTeacherStep(currentStudentStep);
+  const isAnswerStep = isTeacherStep(currentStudentStep) || currentStudentStep === "combined";
 
   if (currentStudentStep === "student") {
+    elements.topNextButton.hidden = false;
     elements.topNextButton.disabled = false;
     if (elements.studentResultButton) {
       elements.studentResultButton.hidden = true;
@@ -312,10 +392,27 @@ function updateStudentSubmitState() {
     return;
   }
 
-  elements.topNextButton.disabled = !isAnswerStep || getStepInputValue(currentStudentStep).length === 0;
+  elements.topNextButton.disabled = !isAnswerStep || !hasCurrentStudentInput();
   if (elements.studentResultButton) {
-    elements.studentResultButton.hidden = !hasSubmittedStep(getSelectedStudentResponse(), currentStudentStep);
+    elements.studentResultButton.hidden = !hasSubmittedCurrentStudentStep();
   }
+}
+
+function hasCurrentStudentInput() {
+  if (currentStudentStep === "combined") {
+    return isCompleteCombinedItem(getCombinedInputValues());
+  }
+
+  return getStepInputValue(currentStudentStep).length > 0;
+}
+
+function hasSubmittedCurrentStudentStep() {
+  const response = getSelectedStudentResponse();
+  if (currentStudentStep === "combined") {
+    return normalizeCombinedList(response?.combined).length > 0;
+  }
+
+  return hasSubmittedStep(response, currentStudentStep);
 }
 
 function goToPreviousStudentStep() {
@@ -346,8 +443,16 @@ function goFromStudentToSee() {
 
   selectedStudentNumber = String(studentNumber);
   loadSelectedStudentResponse();
-  showStudentStep(activeClassStep);
+  showStudentStep(getStudentEntryStep());
   focusCurrentStepInput();
+}
+
+function getStudentEntryStep() {
+  if (!activeClassMode) {
+    return "waiting";
+  }
+
+  return activeClassMode === "combined" ? "combined" : activeClassStep;
 }
 
 function renderEmptyStepInputs() {
@@ -355,6 +460,7 @@ function renderEmptyStepInputs() {
   addSeeRow();
   renderThinkRows();
   renderWonderRows();
+  renderCombinedRows();
 }
 
 function addSeeRow(value = "") {
@@ -397,6 +503,31 @@ function renderWonderRows(value = "") {
   resizeTextareas(row);
 }
 
+function renderCombinedRows(values = {}) {
+  elements.combinedList.innerHTML = "";
+  const row = document.createElement("div");
+  row.className = "combined-response-card";
+  row.innerHTML = `
+    <p>
+      <span>저는</span>
+      <textarea class="combined-see-item combined-inline-input" rows="1" maxlength="80" placeholder="보기" autocomplete="off">${escapeHtml(values.see || "")}</textarea>
+      <span>을/를 보았습니다.</span>
+    </p>
+    <p>
+      <span>그 모습을 보고</span>
+      <textarea class="combined-think-item combined-inline-input" rows="1" maxlength="120" placeholder="생각하기" autocomplete="off">${escapeHtml(values.think || "")}</textarea>
+      <span>라고 생각합니다.</span>
+    </p>
+    <p>
+      <span>그래서</span>
+      <textarea class="combined-wonder-item combined-inline-input" rows="1" maxlength="120" placeholder="궁금해하기" autocomplete="off">${escapeHtml(values.wonder || "")}</textarea>
+      <span>이/가 궁금합니다.</span>
+    </p>
+  `;
+  elements.combinedList.append(row);
+  resizeTextareas(row);
+}
+
 function closeConfirmModal() {
   modalMode = "student";
   elements.confirmModal.hidden = true;
@@ -408,7 +539,7 @@ function closeConfirmModal() {
 }
 
 async function openStudentResults() {
-  if (!isTeacherStep(currentStudentStep) || !hasSubmittedStep(getSelectedStudentResponse(), currentStudentStep)) {
+  if (!hasSubmittedCurrentStudentStep()) {
     return;
   }
 
@@ -419,12 +550,16 @@ async function openStudentResults() {
   }
 
   modalMode = "student-results";
-  document.querySelector("#confirmModalTitle").textContent = `${teacherSteps[currentStudentStep].label} 결과`;
+  document.querySelector("#confirmModalTitle").textContent = currentStudentStep === "combined"
+    ? "한 번에 작성 결과"
+    : `${teacherSteps[currentStudentStep].label} 결과`;
   elements.modalBackButton.hidden = true;
   elements.modalSubmitButton.textContent = "닫기";
   elements.confirmModal.classList.remove("teacher-tools-locked");
   elements.confirmModal.classList.add("student-results-modal");
-  elements.modalSentenceList.innerHTML = renderCollectedAnswers(currentStudentStep, { showDelete: false });
+  elements.modalSentenceList.innerHTML = currentStudentStep === "combined"
+    ? renderCombinedAnswers({ showDelete: false })
+    : renderCollectedAnswers(currentStudentStep, { showDelete: false });
   elements.confirmModal.hidden = false;
   elements.modalSubmitButton.focus();
 }
@@ -453,6 +588,18 @@ function getStepInputValue(step) {
   return inputByStep[step]?.value.trim() || "";
 }
 
+function getCombinedInputValues() {
+  return {
+    see: elements.combinedList.querySelector(".combined-see-item")?.value.trim() || "",
+    think: elements.combinedList.querySelector(".combined-think-item")?.value.trim() || "",
+    wonder: elements.combinedList.querySelector(".combined-wonder-item")?.value.trim() || "",
+  };
+}
+
+function isCompleteCombinedItem(item) {
+  return Boolean(item?.see && item?.think && item?.wonder);
+}
+
 function clearStepInput(step) {
   const inputByStep = {
     see: elements.seeList.querySelector(".see-item"),
@@ -463,6 +610,14 @@ function clearStepInput(step) {
   if (!input) return;
   input.value = "";
   resizeTextarea(input);
+  updateStudentSubmitState();
+}
+
+function clearCombinedInputs() {
+  elements.combinedList.querySelectorAll("textarea").forEach((input) => {
+    input.value = "";
+    resizeTextarea(input);
+  });
   updateStudentSubmitState();
 }
 
@@ -477,6 +632,7 @@ function resetAnswerLists() {
   elements.seeList.innerHTML = "";
   elements.thinkList.innerHTML = "";
   elements.wonderList.innerHTML = "";
+  elements.combinedList.innerHTML = "";
 }
 
 function focusFirstSeeInput() {
@@ -491,11 +647,16 @@ function focusFirstWonderInput() {
   elements.wonderList.querySelector(".wonder-item")?.focus();
 }
 
+function focusFirstCombinedInput() {
+  elements.combinedList.querySelector(".combined-see-item")?.focus();
+}
+
 function focusCurrentStepInput() {
   const focusByStep = {
     see: focusFirstSeeInput,
     think: focusFirstThinkInput,
     wonder: focusFirstWonderInput,
+    combined: focusFirstCombinedInput,
   };
   focusByStep[currentStudentStep]?.();
 }
@@ -549,7 +710,9 @@ function updateBackendStatus(status, text) {
 
 function startTeacherPolling() {
   stopTeacherPolling();
-  teacherPollId = window.setInterval(() => {
+  teacherPollId = window.setInterval(async () => {
+    await refreshActiveClassMode({ renderStudent: false });
+    await refreshActiveClassStep({ renderStudent: false });
     refreshResponses();
   }, 2000);
 }
@@ -564,6 +727,7 @@ function startStudentStepPolling() {
   stopStudentStepPolling();
   studentStepPollId = window.setInterval(() => {
     if (!elements.studentView.hidden) {
+      refreshActiveClassMode();
       refreshActiveClassStep();
     }
   }, 2000);
@@ -598,12 +762,48 @@ async function refreshActiveClassStep(options = {}) {
     activeClassStep = "see";
   }
 
+  if (!activeClassMode) {
+    if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student" && currentStudentStep !== "waiting") {
+      showStudentStep("waiting");
+    }
+    return activeClassStep;
+  }
+
+  if (activeClassMode === "combined") {
+    if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student" && currentStudentStep !== "combined") {
+      showStudentStep("combined");
+      focusCurrentStepInput();
+    }
+    return activeClassStep;
+  }
+
   if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student" && currentStudentStep !== activeClassStep) {
     showStudentStep(activeClassStep);
     focusCurrentStepInput();
   }
 
   return activeClassStep;
+}
+
+async function refreshActiveClassMode(options = {}) {
+  const { renderStudent = true } = options;
+  const previousMode = activeClassMode;
+
+  try {
+    activeClassMode = await loadActiveClassMode();
+  } catch {
+    activeClassMode = previousMode;
+  }
+
+  if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student") {
+    const nextStep = getStudentEntryStep();
+    if (currentStudentStep !== nextStep) {
+      showStudentStep(nextStep);
+      focusCurrentStepInput();
+    }
+  }
+
+  return activeClassMode;
 }
 
 async function loadActiveClassStep() {
@@ -616,6 +816,18 @@ async function loadActiveClassStep() {
   );
   const step = rows[0]?.value;
   return isTeacherStep(step) ? step : "see";
+}
+
+async function loadActiveClassMode() {
+  if (!isSupabaseReady()) {
+    return activeClassMode;
+  }
+
+  const rows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(activeModeSettingId)}&select=value&limit=1`
+  );
+  const mode = rows[0]?.value;
+  return isClassMode(mode) ? mode : null;
 }
 
 async function saveActiveClassStep(step) {
@@ -652,11 +864,105 @@ async function saveActiveClassStep(step) {
   });
 }
 
+async function saveActiveClassMode(mode) {
+  if (!isClassMode(mode)) return;
+  activeClassMode = mode;
+
+  await saveClassModeSetting(mode);
+}
+
+async function saveClassModeSetting(value) {
+  if (!isSupabaseReady()) {
+    throw new Error("Supabase is not configured");
+  }
+
+  const payload = {
+    id: activeModeSettingId,
+    value,
+    updated_at: new Date().toISOString(),
+  };
+
+  const existingRows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(activeModeSettingId)}&select=id&limit=1`
+  );
+
+  if (existingRows[0]) {
+    await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(activeModeSettingId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    return;
+  }
+
+  await supabaseRequest(`/${supabaseSettingsTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
+}
+
 async function appendStudentStep(step, value) {
   const studentName = getStudentName();
   const existingResponse = getResponseByStudentName(studentName);
   const existingValues = normalizeList(existingResponse?.[step]).filter(Boolean);
   return await saveStudentStep(step, [...existingValues, value]);
+}
+
+async function appendCombinedStep(value) {
+  const studentName = getStudentName();
+  const existingResponse = getResponseByStudentName(studentName);
+  const existingValues = normalizeCombinedList(existingResponse?.combined);
+  return await saveCombinedStep([...existingValues, value]);
+}
+
+async function saveCombinedStep(values) {
+  if (!isSupabaseReady()) {
+    throw new Error("Supabase is not configured");
+  }
+
+  const studentName = getStudentName();
+  const existingResponse = getResponseByStudentName(studentName);
+  const payload = { combined: values };
+
+  if (existingResponse) {
+    try {
+      const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(existingResponse.id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      });
+      if (!rows[0]) {
+        throw new Error("Supabase update did not return a row");
+      }
+      const updatedResponse = fromSupabaseRow(rows[0]);
+      responses = responses.map((item) => (item.id === updatedResponse.id ? updatedResponse : item));
+      return updatedResponse;
+    } catch {
+      return await replaceResponseByInsert(existingResponse, payload);
+    }
+  }
+
+  const response = {
+    id: createId(),
+    name: studentName,
+    see: [],
+    think: [],
+    wonder: [],
+    combined: values,
+    createdAt: new Date().toISOString(),
+  };
+  const rows = await supabaseRequest(`/${supabaseTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify(toSupabaseRow(response)),
+  });
+  if (!rows[0]) {
+    throw new Error("Supabase insert did not return a row");
+  }
+  const createdResponse = fromSupabaseRow(rows[0]);
+  responses = [createdResponse, ...responses];
+  return createdResponse;
 }
 
 async function saveStudentStep(step, values) {
@@ -692,6 +998,7 @@ async function saveStudentStep(step, values) {
     see: step === "see" ? values : [],
     think: step === "think" ? values : [],
     wonder: step === "wonder" ? values : [],
+    combined: [],
     createdAt: new Date().toISOString(),
   };
   const rows = await supabaseRequest(`/${supabaseTable}`, {
@@ -775,6 +1082,34 @@ async function deleteStepAnswer(responseId, step, answerIndex) {
   }
 }
 
+async function deleteCombinedAnswer(responseId, answerIndex) {
+  if (!isSupabaseReady()) {
+    throw new Error("Supabase is not configured");
+  }
+
+  const originalResponse = responses.find((item) => item.id === responseId);
+  if (!originalResponse) {
+    throw new Error("Answer not found");
+  }
+
+  const nextValues = normalizeCombinedList(originalResponse.combined).filter((_, index) => index !== answerIndex);
+  try {
+    const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(responseId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({ combined: nextValues }),
+    });
+    if (!rows[0]) {
+      throw new Error("Supabase update did not return a row");
+    }
+
+    const updatedResponse = fromSupabaseRow(rows[0]);
+    responses = responses.map((item) => (item.id === responseId ? updatedResponse : item));
+  } catch {
+    await replaceResponseByInsert(originalResponse, { combined: nextValues });
+  }
+}
+
 function isSupabaseReady() {
   return Boolean(supabaseUrl && supabaseAnonKey);
 }
@@ -817,6 +1152,7 @@ function toSupabaseRow(response) {
     see: response.see,
     think: response.think,
     wonder: response.wonder,
+    combined: response.combined || [],
     created_at: response.createdAt,
   };
 }
@@ -828,21 +1164,27 @@ function fromSupabaseRow(row) {
     see: normalizeList(row.see),
     think: normalizeList(row.think),
     wonder: normalizeList(row.wonder),
+    combined: normalizeCombinedList(row.combined),
     createdAt: row.created_at,
   };
 }
 
 function renderResponses() {
   elements.emptyState.hidden = true;
+  elements.teacherModeTabs.innerHTML = "";
+  elements.teacherModeTabs.hidden = true;
   elements.teacherTopTabs.innerHTML = "";
-  elements.teacherTopTabs.append(renderTeacherTabs());
+  elements.teacherTopTabs.hidden = activeClassMode !== "sequential";
+  if (activeClassMode === "sequential") {
+    elements.teacherTopTabs.append(renderTeacherTabs());
+  }
   elements.responseList.innerHTML = "";
   elements.responseList.append(renderTeacherDashboard());
 }
 
 function renderTeacherDashboard() {
   const dashboard = document.createElement("section");
-  dashboard.className = `teacher-dashboard is-${activeTeacherStep}`;
+  dashboard.className = `teacher-dashboard is-${activeClassMode === "combined" ? "combined" : activeTeacherStep}`;
   dashboard.append(renderTeacherDashboardBody());
   return dashboard;
 }
@@ -865,7 +1207,7 @@ function renderCollectedAnswersPanel() {
   const panel = document.createElement("section");
   panel.className = "teacher-dashboard-panel teacher-collected-panel";
   panel.innerHTML = `
-    ${renderCollectedAnswers(activeTeacherStep)}
+    ${activeClassMode === "combined" ? renderCombinedAnswers() : renderCollectedAnswers(activeTeacherStep)}
   `;
   panel.querySelectorAll("[data-delete-answer]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -890,6 +1232,28 @@ function renderCollectedAnswersPanel() {
       }
     });
   });
+  panel.querySelectorAll("[data-delete-combined]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const responseId = button.dataset.responseId;
+      const answerIndex = Number(button.dataset.answerIndex);
+      if (!responseId || !Number.isInteger(answerIndex)) return;
+
+      const card = button.closest(".postit-card");
+      button.disabled = true;
+      card?.classList.add("is-removing");
+      await waitForCardExit(card);
+
+      try {
+        await deleteCombinedAnswer(responseId, answerIndex);
+        renderResponses();
+        showToast("답변을 지웠습니다.");
+      } catch {
+        button.disabled = false;
+        card?.classList.remove("is-removing");
+        showToast("답변을 지우지 못했습니다.");
+      }
+    });
+  });
   return panel;
 }
 
@@ -898,6 +1262,38 @@ function waitForCardExit(card) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, 220);
   });
+}
+
+function renderTeacherModeTabs() {
+  const tabs = document.createElement("div");
+  tabs.className = `teacher-mode-tab-list is-${activeClassMode}`;
+  tabs.setAttribute("role", "tablist");
+  tabs.setAttribute("aria-label", "활동 모드 선택");
+  tabs.innerHTML = Object.entries(classModes)
+    .map(([mode, label]) => `
+      <button class="teacher-mode-tab ${mode === activeClassMode ? "is-selected" : ""}" type="button" role="tab" aria-selected="${mode === activeClassMode}" data-class-mode="${mode}">
+        ${label}
+      </button>
+    `)
+    .join("");
+
+  tabs.querySelectorAll("[data-class-mode]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const nextMode = button.dataset.classMode;
+      if (!isClassMode(nextMode)) return;
+
+      activeClassMode = nextMode;
+      renderResponses();
+
+      try {
+        await saveActiveClassMode(nextMode);
+      } catch {
+        showToast("모드를 바꾸지 못했습니다.");
+      }
+    });
+  });
+
+  return tabs;
 }
 
 function renderTeacherTabs() {
@@ -944,7 +1340,9 @@ function renderTeacherStudentGrid() {
   grid.innerHTML = Array.from({ length: studentCount }, (_, index) => {
     const studentName = `${index + 1}번`;
     const response = getResponseByStudentName(studentName);
-    const values = normalizeList(response?.[activeTeacherStep]).filter(Boolean);
+    const values = activeClassMode === "combined"
+      ? normalizeCombinedList(response?.combined)
+      : normalizeList(response?.[activeTeacherStep]).filter(Boolean);
     const submitted = values.length > 0;
     return `
       <button class="teacher-student-button ${submitted ? "is-submitted" : "is-empty"}" type="button" data-teacher-student="${index + 1}" ${submitted ? "" : "disabled"}>
@@ -955,7 +1353,11 @@ function renderTeacherStudentGrid() {
 
   grid.querySelectorAll("[data-teacher-student]:not(:disabled)").forEach((button) => {
     button.addEventListener("click", () => {
-      openTeacherStudentModal(`${button.dataset.teacherStudent}번`, activeTeacherStep);
+      if (activeClassMode === "combined") {
+        openTeacherCombinedStudentModal(`${button.dataset.teacherStudent}번`);
+      } else {
+        openTeacherStudentModal(`${button.dataset.teacherStudent}번`, activeTeacherStep);
+      }
     });
   });
 
@@ -991,6 +1393,57 @@ function renderCollectedAnswers(step, options = {}) {
         `)
         .join("")}
     </div>
+  `;
+}
+
+function renderCombinedAnswers(options = {}) {
+  const { showDelete = true } = options;
+  const cards = getCollectedCombinedAnswers();
+  if (cards.length === 0) {
+    return `<div class="teacher-step-empty">미제출</div>`;
+  }
+
+  return `
+    <div class="teacher-postit-grid combined-postit-grid" aria-label="한 번에 작성 전체 답변">
+      ${cards
+        .map((card, index) => `
+          <article class="postit-card combined-postit-card answer-${(index % answerAccentCount) + 1}">
+            ${showDelete ? `<button
+              class="postit-delete-button"
+              type="button"
+              data-delete-combined
+              data-response-id="${escapeAttribute(card.responseId)}"
+              data-answer-index="${card.answerIndex}"
+              aria-label="답변 지우기"
+              title="지우기"
+            >
+              X
+            </button>` : ""}
+            <div class="postit-content combined-card-content">${renderCombinedSentence(card.value)}</div>
+          </article>
+        `)
+        .join("")}
+    </div>
+  `;
+}
+
+function getCollectedCombinedAnswers() {
+  return Array.from({ length: studentCount }, (_, index) => getResponseByStudentName(`${index + 1}번`))
+    .filter(Boolean)
+    .flatMap((response) =>
+      normalizeCombinedList(response.combined).map((value, answerIndex) => ({
+        responseId: response.id,
+        answerIndex,
+        value,
+      }))
+    );
+}
+
+function renderCombinedSentence(item) {
+  return `
+    <p>저는 <strong>${escapeHtml(item.see)}</strong>을/를 보았습니다.</p>
+    <p>그 모습을 보고 <strong>${escapeHtml(item.think)}</strong>라고 생각합니다.</p>
+    <p>그래서 <strong>${escapeHtml(item.wonder)}</strong>이/가 궁금합니다.</p>
   `;
 }
 
@@ -1059,6 +1512,62 @@ function openTeacherStudentModal(studentName, step) {
   elements.modalSubmitButton.focus();
 }
 
+function openTeacherCombinedStudentModal(studentName) {
+  const response = getResponseByStudentName(studentName);
+  if (!response) return;
+
+  modalMode = "teacher";
+  document.querySelector("#confirmModalTitle").textContent = `${studentName} 한 번에 작성`;
+  elements.modalBackButton.hidden = true;
+  elements.modalSubmitButton.textContent = "닫기";
+  elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
+  elements.modalSentenceList.innerHTML = `
+    <section class="teacher-response-set">
+      <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(response.id)}" aria-label="학생 답변 비우기" title="비우기">
+        삭제
+      </button>
+      ${renderCombinedValueCards(response.combined)}
+    </section>
+  `;
+
+  elements.modalSentenceList.querySelector("[data-delete-response]")?.addEventListener("click", async (event) => {
+    const responseId = event.currentTarget.dataset.deleteResponse;
+    if (!responseId || !window.confirm(`${studentName}의 답변을 모두 비울까요?`)) return;
+
+    try {
+      await deleteResponse(responseId);
+      renderResponses();
+      closeConfirmModal();
+      showToast("비웠습니다.");
+    } catch {
+      showToast("답변을 비우지 못했습니다.");
+    }
+  });
+
+  elements.confirmModal.hidden = false;
+  elements.modalSubmitButton.focus();
+}
+
+function renderCombinedValueCards(values) {
+  const submittedValues = normalizeCombinedList(values);
+  if (submittedValues.length === 0) {
+    return `<div class="teacher-step-empty">미제출</div>`;
+  }
+
+  return `
+    <div class="teacher-sentence-list" aria-label="한 번에 작성 결과">
+      ${submittedValues
+        .map((value, index) => `
+          <article class="sentence-card answer-${index + 1}">
+            <span class="card-number">${index + 1}</span>
+            <div class="sentence-lines">${renderCombinedSentence(value)}</div>
+          </article>
+        `)
+        .join("")}
+    </div>
+  `;
+}
+
 function renderStepResponse(item, step) {
   const seeItems = normalizeList(item.see);
   const thinkItems = normalizeList(item.think);
@@ -1103,6 +1612,10 @@ function isTeacherStep(step) {
   return Object.prototype.hasOwnProperty.call(teacherSteps, step);
 }
 
+function isClassMode(mode) {
+  return Object.prototype.hasOwnProperty.call(classModes, mode);
+}
+
 function getSelectedStudentResponse() {
   return getResponseByStudentName(getStudentName());
 }
@@ -1137,6 +1650,17 @@ function normalizeStudentNumber(value) {
 
 function normalizeList(value) {
   return Array.isArray(value) ? value : value ? [value] : [];
+}
+
+function normalizeCombinedList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => ({
+      see: String(item?.see || "").trim(),
+      think: String(item?.think || "").trim(),
+      wonder: String(item?.wonder || "").trim(),
+    }))
+    .filter(isCompleteCombinedItem);
 }
 
 function escapeHtml(value) {

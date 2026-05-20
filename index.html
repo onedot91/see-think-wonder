@@ -19,9 +19,27 @@
         <button class="role-button" id="teacherRoleButton" type="button">결과 보기</button>
       </section>
 
+      <section class="teacher-mode-view" id="teacherModeView" hidden>
+        <header class="view-head teacher-mode-head">
+          <h1>진행 방식</h1>
+          <button class="secondary-button" data-change-role type="button">처음으로</button>
+        </header>
+        <div class="teacher-mode-choice-grid">
+          <button class="teacher-mode-choice is-sequential" type="button" data-open-teacher-mode="sequential">
+            <span>순차 진행</span>
+            <small>보기, 생각하기, 궁금해하기를 단계별로 진행합니다.</small>
+          </button>
+          <button class="teacher-mode-choice is-combined" type="button" data-open-teacher-mode="combined">
+            <span>한 번에 작성</span>
+            <small>한 페이지에서 보기, 생각하기, 궁금해하기를 함께 작성합니다.</small>
+          </button>
+        </div>
+      </section>
+
       <section class="app-view" id="teacherView" hidden>
         <header class="view-head">
           <h1>결과</h1>
+          <div class="teacher-mode-tabs" id="teacherModeTabs"></div>
           <div class="teacher-top-tabs" id="teacherTopTabs"></div>
           <button class="secondary-button" data-change-role type="button">처음으로</button>
         </header>
@@ -52,6 +70,14 @@
             </div>
           </section>
 
+          <section class="student-step" data-step="waiting" hidden>
+            <div class="student-waiting-card">
+              <div class="student-waiting-spinner" aria-hidden="true"></div>
+              <p>교사가 진행 방식을 선택하는 중입니다.</p>
+              <small>잠시만 기다려 주세요.</small>
+            </div>
+          </section>
+
           <section class="student-step" data-step="see" hidden>
             <div class="item-list" id="seeList"></div>
           </section>
@@ -62,6 +88,10 @@
 
           <section class="student-step" data-step="wonder" hidden>
             <div class="item-list chain-list" id="wonderList"></div>
+          </section>
+
+          <section class="student-step" data-step="combined" hidden>
+            <div class="combined-list" id="combinedList"></div>
           </section>
 
         </form>

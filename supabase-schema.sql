@@ -4,8 +4,12 @@ create table if not exists public.stw_responses (
   see jsonb not null default '[]'::jsonb,
   think jsonb not null default '[]'::jsonb,
   wonder jsonb not null default '[]'::jsonb,
+  combined jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
+
+alter table public.stw_responses
+add column if not exists combined jsonb not null default '[]'::jsonb;
 
 alter table public.stw_responses enable row level security;
 
