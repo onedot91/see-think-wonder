@@ -9,14 +9,14 @@
   --see-bg: #c8e6cd;
   --see-line: #000000;
   --see-text: #000000;
-  --think-bg: #dceeb1;
+  --think-bg: #d8ccfb;
   --think-line: #000000;
   --think-text: #000000;
   --wonder-bg: #f4ecd6;
   --wonder-line: #000000;
   --wonder-text: #000000;
   --block-lime: #dceeb1;
-  --block-lilac: #c5b0f4;
+  --block-lilac: #d8ccfb;
   --block-cream: #f4ecd6;
   --block-pink: #efd4d4;
   --block-mint: #c8e6cd;
@@ -198,9 +198,41 @@ textarea::placeholder {
 }
 
 .group-button.is-selected {
-  color: var(--think-text);
-  background: var(--think-bg);
-  border-color: var(--think-line);
+  color: var(--see-text);
+  background: var(--block-lime);
+  border-color: var(--see-line);
+}
+
+.student-number-entry {
+  display: grid;
+  justify-items: center;
+  gap: 28px;
+  padding: 52px 24px;
+}
+
+.student-number-label {
+  display: block;
+  font-size: clamp(2.6rem, 5vw, 4.4rem);
+  line-height: 1;
+  font-weight: 900;
+  text-align: center;
+}
+
+.student-number-input {
+  width: min(100%, 520px);
+  height: 170px;
+  border: 3px solid #000000;
+  border-radius: 24px;
+  background: #ffffff;
+  color: #000000;
+  font-size: clamp(4rem, 9vw, 7rem);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.student-number-input::placeholder {
+  color: #8c9698;
 }
 
 .app-view {
@@ -229,6 +261,7 @@ textarea::placeholder {
 
 .student-top-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 10px;
   align-items: center;
 }
@@ -243,7 +276,7 @@ textarea::placeholder {
 .student-step {
   min-width: 0;
   min-height: 0;
-  padding: 32px 32px 36px;
+  padding: 28px;
   transform-origin: 50% 16px;
   will-change: opacity, transform;
   overflow-x: hidden;
@@ -479,7 +512,7 @@ textarea {
 .item-list {
   display: grid;
   gap: 14px;
-  margin-bottom: 14px;
+  margin-bottom: 0;
 }
 
 .student-step > .item-list {
@@ -502,6 +535,53 @@ textarea {
 
 .chain-list .chain-card {
   width: 100%;
+}
+
+.single-input-card {
+  max-width: 100%;
+}
+
+.single-input-card .routine-field {
+  grid-template-columns: 170px minmax(0, 1fr);
+}
+
+.single-response-card {
+  display: grid;
+  width: 100%;
+  min-height: 190px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.single-response-field {
+  display: grid;
+  min-width: 0;
+}
+
+.single-response-input {
+  min-height: 190px;
+  height: 100%;
+  padding: 30px;
+  border: 2px solid #000000;
+  border-radius: 18px;
+  background: transparent;
+  color: #000000;
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  font-weight: 900;
+  line-height: 1.22;
+  resize: none;
+  overflow: hidden;
+}
+
+.single-response-input::placeholder {
+  color: rgba(0, 0, 0, 0.36);
+}
+
+.single-response-input:focus {
+  outline: 5px solid rgba(0, 0, 0, 0.12);
+  outline-offset: 3px;
 }
 
 .see-row {
@@ -538,6 +618,7 @@ textarea {
 }
 
 [data-step="group"].is-entering .group-button,
+[data-step="student"].is-entering .group-button,
 .student-step.is-entering .chain-card,
 .student-step.is-entering .action-bar {
   animation: item-enter 460ms cubic-bezier(0.2, 0.85, 0.25, 1) both;
@@ -547,7 +628,8 @@ textarea {
 [data-step="think"].is-entering .chain-card:nth-child(2),
 [data-step="wonder"].is-entering .chain-card:nth-child(2),
 [data-step="review"].is-entering .chain-card:nth-child(2),
-[data-step="group"].is-entering .group-button:nth-child(2) {
+[data-step="group"].is-entering .group-button:nth-child(2),
+[data-step="student"].is-entering .group-button:nth-child(2) {
   animation-delay: 45ms;
 }
 
@@ -555,7 +637,8 @@ textarea {
 [data-step="think"].is-entering .chain-card:nth-child(3),
 [data-step="wonder"].is-entering .chain-card:nth-child(3),
 [data-step="review"].is-entering .chain-card:nth-child(3),
-[data-step="group"].is-entering .group-button:nth-child(3) {
+[data-step="group"].is-entering .group-button:nth-child(3),
+[data-step="student"].is-entering .group-button:nth-child(3) {
   animation-delay: 90ms;
 }
 
@@ -563,7 +646,8 @@ textarea {
 [data-step="think"].is-entering .chain-card:nth-child(4),
 [data-step="wonder"].is-entering .chain-card:nth-child(4),
 [data-step="review"].is-entering .chain-card:nth-child(4),
-[data-step="group"].is-entering .group-button:nth-child(4) {
+[data-step="group"].is-entering .group-button:nth-child(4),
+[data-step="student"].is-entering .group-button:nth-child(4) {
   animation-delay: 135ms;
 }
 
@@ -827,43 +911,194 @@ button {
 
 .response-list {
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
-.teacher-group-grid {
+.teacher-dashboard {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 18px;
 }
 
-.teacher-group-button {
+.teacher-dashboard-body {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.teacher-dashboard-panel {
+  display: grid;
+  gap: 14px;
+  padding: 28px;
+  border: 2px solid #000000;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.teacher-status-panel {
+  padding: 16px 20px;
+}
+
+.teacher-collected-panel {
+  padding: 22px;
+  border-radius: 22px;
+}
+
+.teacher-dashboard-panel h2 {
+  margin: 0;
+  font-size: 2.2rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.teacher-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.teacher-panel-head span {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border: 2px solid #000000;
+  border-radius: 999px;
+  background: var(--block-lime);
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.teacher-group-grid,
+.teacher-student-grid {
+  display: grid;
+  grid-template-columns: repeat(23, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.teacher-group-button,
+.teacher-student-button {
   display: grid;
   place-items: center;
-  gap: 8px;
-  min-height: 170px;
-  border: 3px solid var(--line);
+  min-height: 42px;
+  padding: 4px;
+  border: 2px solid var(--line);
+  border-radius: 9px;
   background: #ffffff;
   color: var(--ink);
 }
 
-.teacher-group-button:not(:disabled) {
+.teacher-group-button:not(:disabled),
+.teacher-student-button.is-submitted {
   border-color: var(--think-line);
-  background: var(--think-bg);
   color: var(--think-text);
 }
 
-.teacher-group-button:disabled {
+.teacher-group-button:disabled,
+.teacher-student-button.is-empty {
   cursor: default;
   color: #8c9698;
   background: #f7f8f8;
 }
 
-.teacher-group-button span {
-  font-size: 3.2rem;
+.teacher-group-button span,
+.teacher-student-button span {
+  font-size: 1.1rem;
+  font-weight: 900;
 }
 
-.teacher-group-button small {
-  font-size: 1.7rem;
+.teacher-step-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px;
+  border: 2px solid #000000;
+  border-radius: 24px;
+  background: #ffffff;
+}
+
+.teacher-top-tabs {
+  flex: 1;
+  min-width: 0;
+}
+
+.teacher-top-tabs .teacher-step-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.teacher-top-tabs .teacher-step-tab {
+  min-height: 62px;
+  padding: 8px 14px;
+  border-radius: 16px;
+  font-size: 1.25rem;
+}
+
+.teacher-top-tabs .teacher-step-tab small {
+  font-size: 0.78rem;
+}
+
+.teacher-top-tabs [data-teacher-step="see"] {
+  background: rgba(220, 238, 177, 0.28);
+}
+
+.teacher-top-tabs [data-teacher-step="think"] {
+  background: rgba(216, 204, 251, 0.26);
+}
+
+.teacher-top-tabs [data-teacher-step="wonder"] {
+  background: rgba(244, 236, 214, 0.48);
+}
+
+.teacher-top-tabs [data-teacher-step="see"].is-selected {
+  background: var(--block-lime);
+}
+
+.teacher-top-tabs [data-teacher-step="think"].is-selected {
+  background: var(--block-lilac);
+}
+
+.teacher-top-tabs [data-teacher-step="wonder"].is-selected {
+  background: var(--block-cream);
+}
+
+.teacher-step-tab {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  min-height: 82px;
+  border: 2px solid #000000;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #000000;
+}
+
+.teacher-step-tab.is-selected {
+  background: var(--block-lime);
+}
+
+.teacher-step-tabs [data-teacher-step="see"].is-selected,
+.teacher-dashboard.is-see .teacher-student-button.is-submitted,
+.teacher-dashboard.is-see .teacher-panel-head span {
+  background: var(--block-lime);
+}
+
+.teacher-step-tabs [data-teacher-step="think"].is-selected,
+.teacher-dashboard.is-think .teacher-student-button.is-submitted,
+.teacher-dashboard.is-think .teacher-panel-head span {
+  background: var(--block-lilac);
+}
+
+.teacher-step-tabs [data-teacher-step="wonder"].is-selected,
+.teacher-dashboard.is-wonder .teacher-student-button.is-submitted,
+.teacher-dashboard.is-wonder .teacher-panel-head span {
+  background: var(--block-cream);
+}
+
+.teacher-step-tab small {
+  font-size: 1.2rem;
   font-weight: 900;
 }
 
@@ -879,6 +1114,97 @@ button {
 .teacher-sentence-list {
   display: grid;
   gap: 12px;
+}
+
+.teacher-postit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.postit-card {
+  position: relative;
+  display: grid;
+  align-items: start;
+  min-height: 118px;
+  padding: 22px 26px 18px 20px;
+  border: 2px solid #000000;
+  border-radius: 14px;
+  background: var(--block-mint);
+}
+
+.postit-delete-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #000000;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, background 140ms ease;
+}
+
+.postit-card:hover .postit-delete-button,
+.postit-card:focus-within .postit-delete-button,
+.postit-delete-button:hover,
+.postit-delete-button:focus-visible {
+  background: rgba(255, 255, 255, 0.78);
+  opacity: 0.82;
+  pointer-events: auto;
+  transform: none;
+}
+
+.teacher-dashboard.is-think .postit-card {
+  background: var(--block-lilac);
+}
+
+.teacher-dashboard.is-wonder .postit-card {
+  background: var(--block-cream);
+}
+
+.postit-content {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.postit-content small {
+  display: block;
+  min-width: 0;
+  color: #000000;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.2;
+  opacity: 0.72;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.postit-content p {
+  display: -webkit-box;
+  margin: 0;
+  min-width: 0;
+  color: #000000;
+  font-size: clamp(1.35rem, 1.8vw, 1.8rem);
+  font-weight: 900;
+  line-height: 1.28;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .teacher-response-set {
@@ -952,6 +1278,15 @@ button {
 .teacher-tools-locked .icon-delete-button,
 .teacher-tools-locked .icon-move-button {
   display: none;
+}
+
+.teacher-step-empty {
+  padding: 24px;
+  border: 2px solid #000000;
+  border-radius: 24px;
+  background: #ffffff;
+  font-weight: 900;
+  text-align: center;
 }
 
 .sentence-lines {
@@ -1172,7 +1507,8 @@ button {
 
 .role-button,
 .group-button,
-.teacher-group-button {
+.teacher-group-button,
+.teacher-student-button {
   border: 2px solid var(--ink);
   border-radius: 24px;
   background: var(--surface);
@@ -1192,7 +1528,9 @@ button {
 
 .role-button:hover,
 .group-button:hover,
-.teacher-group-button:not(:disabled):hover {
+.teacher-group-button:not(:disabled):hover,
+.teacher-student-button:not(:disabled):hover,
+.teacher-step-tab:hover {
   background: #f7f7f5;
   transform: translateY(-2px);
 }
@@ -1218,10 +1556,31 @@ button {
   padding: 28px 32px;
 }
 
+#teacherView .view-head {
+  display: grid;
+  grid-template-columns: auto minmax(420px, 1fr) auto;
+  gap: 22px;
+  align-items: center;
+  min-height: 104px;
+  padding: 22px 28px;
+}
+
 .view-head h1 {
   font-size: clamp(3.1rem, 5vw, 5rem);
   font-weight: 900;
   line-height: 1;
+}
+
+#teacherView .view-head h1 {
+  font-size: clamp(3rem, 4.6vw, 4.7rem);
+  white-space: nowrap;
+}
+
+#teacherView .view-head [data-change-role] {
+  min-width: 150px;
+  min-height: 64px;
+  padding: 10px 24px;
+  font-size: 1.55rem;
 }
 
 #studentView .view-head {
@@ -1257,10 +1616,11 @@ button {
 
 #studentView .student-top-actions {
   flex-shrink: 0;
+  padding-top: 4px;
 }
 
 #studentView .student-top-actions button {
-  min-width: 122px;
+  min-width: 220px;
   white-space: nowrap;
 }
 
@@ -1270,6 +1630,12 @@ button {
   padding: 14px 34px;
   font-size: 1.85rem;
   letter-spacing: 0;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.34;
+  transform: none;
 }
 
 .primary-button {
@@ -1301,20 +1667,33 @@ button {
 }
 
 .group-button.is-selected,
-.teacher-group-button:not(:disabled) {
+.teacher-group-button:not(:disabled),
+.teacher-student-button.is-submitted {
   border-color: #000000;
-  background: var(--block-lime);
   color: #000000;
 }
 
-.teacher-group-button:disabled {
+.teacher-group-button:disabled,
+.teacher-student-button.is-empty {
   border-color: var(--line);
   background: #ffffff;
   color: #8a8a8a;
 }
 
-.teacher-group-button span {
-  font-size: 3.6rem;
+.teacher-group-button span,
+.teacher-student-button span {
+  font-size: 1.25rem;
+}
+
+.teacher-student-button {
+  min-height: 44px;
+  padding: 4px;
+  border-radius: 9px;
+  font-size: 0.95rem;
+}
+
+.teacher-student-button:not(:disabled):hover {
+  transform: none;
 }
 
 .student-step {
@@ -1323,22 +1702,23 @@ button {
   border-radius: 24px;
 }
 
-[data-step="group"] {
+[data-step="group"],
+[data-step="student"] {
   background: var(--block-cream);
 }
 
 [data-step="see"] {
-  background: var(--block-mint);
+  background: #ffffff;
   border-color: #000000;
 }
 
 [data-step="think"] {
-  background: var(--block-lime);
+  background: #ffffff;
   border-color: #000000;
 }
 
 [data-step="wonder"] {
-  background: var(--block-cream);
+  background: #ffffff;
   border-color: #000000;
 }
 
@@ -1388,7 +1768,7 @@ textarea,
 }
 
 .think-block {
-  background: var(--block-lime);
+  background: var(--block-lilac);
 }
 
 .wonder-block {
@@ -1407,10 +1787,34 @@ textarea,
 }
 
 .think-block:has(.think-item:not(:placeholder-shown)) {
-  background: var(--block-lime);
+  background: var(--block-lilac);
 }
 
 .wonder-block:has(.wonder-item:not(:placeholder-shown)) {
+  background: var(--block-cream);
+}
+
+[data-step="see"]:has(.single-response-input:not(:placeholder-shown)) {
+  background: var(--block-mint);
+}
+
+[data-step="think"]:has(.single-response-input:not(:placeholder-shown)) {
+  background: var(--block-lilac);
+}
+
+[data-step="wonder"]:has(.single-response-input:not(:placeholder-shown)) {
+  background: var(--block-cream);
+}
+
+.see-response-card .single-response-input:not(:placeholder-shown) {
+  background: var(--block-mint);
+}
+
+.think-response-card .single-response-input:not(:placeholder-shown) {
+  background: var(--block-lilac);
+}
+
+.wonder-response-card .single-response-input:not(:placeholder-shown) {
   background: var(--block-cream);
 }
 
@@ -1428,7 +1832,7 @@ textarea,
 }
 
 .response-list {
-  gap: 24px;
+  gap: 18px;
 }
 
 .confirm-modal {
@@ -1475,13 +1879,67 @@ textarea,
     grid-template-columns: 1fr;
   }
 
+  .student-number-entry {
+    padding: 34px 10px;
+  }
+
+  .student-number-input {
+    height: 132px;
+  }
+
   .teacher-group-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-student-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .teacher-step-tabs {
     grid-template-columns: 1fr;
   }
 
   .view-head {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  #teacherView .view-head {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    min-height: 0;
+  }
+
+  #teacherView .view-head h1 {
+    font-size: clamp(3rem, 14vw, 4.4rem);
+  }
+
+  #teacherView .view-head [data-change-role] {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .teacher-panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .teacher-postit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .postit-card {
+    min-height: 104px;
+    padding: 18px 14px 14px;
+  }
+
+  .postit-content p {
+    font-size: 1.12rem;
+  }
+
+  .teacher-dashboard-panel {
+    padding: 20px;
   }
 
   #studentView .view-head h1 {
@@ -1495,7 +1953,7 @@ textarea,
 
   .student-top-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .student-step {
@@ -1510,6 +1968,17 @@ textarea,
 
   textarea {
     min-height: 240px;
+  }
+
+  .single-response-card {
+    min-height: 190px;
+    padding: 0;
+  }
+
+  .single-response-input {
+    min-height: 140px;
+    padding: 20px;
+    font-size: clamp(1.8rem, 8vw, 2.5rem);
   }
 
   button {

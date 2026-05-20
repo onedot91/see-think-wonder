@@ -22,6 +22,7 @@
       <section class="app-view" id="teacherView" hidden>
         <header class="view-head">
           <h1>결과</h1>
+          <div class="teacher-top-tabs" id="teacherTopTabs"></div>
           <button class="secondary-button" data-change-role type="button">처음으로</button>
         </header>
 
@@ -31,22 +32,23 @@
 
       <section class="app-view" id="studentView" hidden>
         <header class="view-head">
-          <h1 id="studentStepTitle">모둠 이름</h1>
-          <div class="student-top-actions">
-            <button class="secondary-button" id="topPrevButton" type="button">이전</button>
-            <button class="primary-button" id="topNextButton" type="button">다음</button>
-          </div>
+          <h1 id="studentStepTitle">학생 번호</h1>
         </header>
 
         <form id="studentForm">
-          <section class="student-step" data-step="group">
-            <div class="group-buttons" id="groupButtons" aria-label="모둠 선택">
-              <button class="group-button" type="button" data-group="1">1모둠</button>
-              <button class="group-button" type="button" data-group="2">2모둠</button>
-              <button class="group-button" type="button" data-group="3">3모둠</button>
-              <button class="group-button" type="button" data-group="4">4모둠</button>
-              <button class="group-button" type="button" data-group="5">5모둠</button>
-              <button class="group-button" type="button" data-group="6">6모둠</button>
+          <section class="student-step" data-step="student">
+            <div class="student-number-entry" id="groupButtons">
+              <label class="student-number-label" for="studentNumberInput">내 번호</label>
+              <input
+                class="student-number-input"
+                id="studentNumberInput"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="23"
+                placeholder="1~23"
+                autocomplete="off"
+              />
             </div>
           </section>
 
@@ -62,10 +64,10 @@
             <div class="item-list chain-list" id="wonderList"></div>
           </section>
 
-          <section class="student-step" data-step="review" hidden>
-            <div class="item-list chain-list" id="reviewList"></div>
-          </section>
         </form>
+        <div class="student-top-actions">
+          <button class="primary-button" id="topNextButton" type="button">다음</button>
+        </div>
       </section>
     </main>
 
@@ -79,16 +81,6 @@
           </div>
         </div>
         <div class="modal-sentence-list" id="modalSentenceList"></div>
-      </section>
-    </div>
-
-    <div class="modal-backdrop" id="moveGroupModal" hidden>
-      <section class="move-group-modal" role="dialog" aria-modal="true" aria-labelledby="moveGroupModalTitle">
-        <div class="move-group-head">
-          <h2 id="moveGroupModalTitle">옮길 모둠</h2>
-          <button class="secondary-button move-group-close" id="moveGroupCancelButton" type="button">취소</button>
-        </div>
-        <div class="move-group-grid" id="moveGroupGrid" aria-label="옮길 모둠 선택"></div>
       </section>
     </div>
 

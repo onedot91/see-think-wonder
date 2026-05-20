@@ -1,9 +1,16 @@
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabaseTable = "stw_responses";
+const supabaseSettingsTable = "stw_settings";
+const activeStepSettingId = "active_step";
 const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
-const seeItemCount = 2;
-const groupCount = 6;
+const studentCount = 23;
+const answerAccentCount = 3;
+const teacherSteps = {
+  see: { label: "보기", empty: "미제출" },
+  think: { label: "생각하기", empty: "미제출" },
+  wonder: { label: "궁금해하기", empty: "미제출" },
+};
 
 const elements = {
   roleView: document.querySelector("#roleView"),
@@ -11,6 +18,7 @@ const elements = {
   backendStatusText: document.querySelector("#backendStatusText"),
   teacherView: document.querySelector("#teacherView"),
   teacherTitle: document.querySelector("#teacherView h1"),
+  teacherTopTabs: document.querySelector("#teacherTopTabs"),
   studentView: document.querySelector("#studentView"),
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
   studentRoleButton: document.querySelector("#studentRoleButton"),
@@ -19,32 +27,32 @@ const elements = {
   studentForm: document.querySelector("#studentForm"),
   topPrevButton: document.querySelector("#topPrevButton"),
   topNextButton: document.querySelector("#topNextButton"),
-  groupButtons: document.querySelectorAll(".group-button"),
+  groupButtons: document.querySelector("#groupButtons"),
+  studentNumberInput: document.querySelector("#studentNumberInput"),
   seeList: document.querySelector("#seeList"),
   thinkList: document.querySelector("#thinkList"),
   wonderList: document.querySelector("#wonderList"),
-  reviewList: document.querySelector("#reviewList"),
   responseList: document.querySelector("#responseList"),
   emptyState: document.querySelector("#emptyState"),
   confirmModal: document.querySelector("#confirmModal"),
   modalSentenceList: document.querySelector("#modalSentenceList"),
   modalBackButton: document.querySelector("#modalBackButton"),
   modalSubmitButton: document.querySelector("#modalSubmitButton"),
-  moveGroupModal: document.querySelector("#moveGroupModal"),
-  moveGroupGrid: document.querySelector("#moveGroupGrid"),
-  moveGroupCancelButton: document.querySelector("#moveGroupCancelButton"),
 };
 
 let responses = [];
-let selectedGroup = "";
-let currentStudentStep = "group";
+let selectedStudentNumber = "";
+let currentStudentStep = "student";
+let activeTeacherStep = "see";
+let activeClassStep = "see";
 let modalMode = "student";
 let teacherPollId = null;
+let studentStepPollId = null;
 let isBackendOnline = false;
-let pendingMove = null;
 let teacherToolsClickCount = 0;
 let teacherToolsUnlocked = false;
 
+initStudentButtons();
 initResponses();
 
 elements.teacherRoleButton.addEventListener("click", () => showTeacherView());
@@ -57,6 +65,7 @@ elements.teacherTitle.addEventListener("click", () => {
   if (teacherToolsClickCount >= 5) {
     teacherToolsUnlocked = true;
     showToast("관리 버튼을 표시합니다.");
+    renderResponses();
   }
 });
 
@@ -64,22 +73,20 @@ elements.changeRoleButtons.forEach((button) => {
   button.addEventListener("click", () => showRoleView());
 });
 
-elements.groupButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    selectedGroup = button.dataset.group;
-    elements.groupButtons.forEach((item) => {
-      item.classList.toggle("is-selected", item === button);
-    });
-  });
-});
-
 elements.studentForm.addEventListener("input", (event) => {
   if (event.target instanceof HTMLTextAreaElement) {
     resizeTextarea(event.target);
   }
+  updateStudentSubmitState();
 });
 
 elements.studentForm.addEventListener("keydown", (event) => {
+  if (event.target === elements.studentNumberInput && event.key === "Enter" && !event.isComposing) {
+    event.preventDefault();
+    goToNextStudentStep();
+    return;
+  }
+
   if (!(event.target instanceof HTMLTextAreaElement) || event.key !== "Enter" || event.isComposing) {
     return;
   }
@@ -88,7 +95,7 @@ elements.studentForm.addEventListener("keydown", (event) => {
   completeTextareaEntry(event.target);
 });
 
-elements.topPrevButton.addEventListener("click", () => {
+elements.topPrevButton?.addEventListener("click", () => {
   goToPreviousStudentStep();
 });
 
@@ -98,21 +105,15 @@ elements.topNextButton.addEventListener("click", () => {
 
 elements.studentForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  submitStudentResponse();
+  submitCurrentStudentStep();
 });
 
 elements.modalBackButton.addEventListener("click", () => {
   closeConfirmModal();
-  focusFirstWonderInput();
 });
 
 elements.modalSubmitButton.addEventListener("click", () => {
-  if (modalMode === "teacher") {
-    closeConfirmModal();
-    return;
-  }
-
-  submitStudentResponse();
+  closeConfirmModal();
 });
 
 elements.confirmModal.addEventListener("click", (event) => {
@@ -121,76 +122,113 @@ elements.confirmModal.addEventListener("click", (event) => {
   }
 });
 
-elements.moveGroupGrid.innerHTML = Array.from({ length: groupCount }, (_, index) => {
-  const groupNumber = index + 1;
-  return `<button class="move-group-button" type="button" data-move-target-group="${groupNumber}">${groupNumber}모둠</button>`;
-}).join("");
-
-elements.moveGroupGrid.querySelectorAll("[data-move-target-group]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    await submitMoveToGroup(Number(button.dataset.moveTargetGroup));
+function initStudentButtons() {
+  elements.studentNumberInput.addEventListener("input", () => {
+    const normalizedNumber = normalizeStudentNumber(elements.studentNumberInput.value);
+    selectedStudentNumber = normalizedNumber ? String(normalizedNumber) : "";
+    if (selectedStudentNumber) {
+      loadSelectedStudentResponse();
+    } else {
+      renderEmptyStepInputs();
+    }
   });
-});
+}
 
-elements.moveGroupCancelButton.addEventListener("click", () => {
-  closeMoveGroupModal();
-});
+function loadSelectedStudentResponse() {
+  renderEmptyStepInputs();
+}
 
-elements.moveGroupModal.addEventListener("click", (event) => {
-  if (event.target === elements.moveGroupModal) {
-    closeMoveGroupModal();
+async function submitCurrentStudentStep() {
+  if (currentStudentStep === "see") {
+    await submitSeeStep();
+    return;
   }
-});
+  if (currentStudentStep === "think") {
+    await submitThinkStep();
+    return;
+  }
+  if (currentStudentStep === "wonder") {
+    await submitWonderStep();
+  }
+}
 
-async function submitStudentResponse() {
-  const seeItems = getSeeItems();
-  const thoughts = getThoughtItems();
-  const thinkSentences = buildThinkSentences(seeItems, thoughts);
-  const wonderItems = getWonderItems();
-
-  const response = {
-    id: createId(),
-    name: `${getGroupNumber()}모둠`,
-    see: seeItems,
-    think: thoughts,
-    wonder: wonderItems,
-    createdAt: new Date().toISOString(),
-  };
-
-  if (
-    !response.name ||
-    seeItems.length === 0 ||
-    thoughts.some((text) => !text) ||
-    wonderItems.length !== thinkSentences.length ||
-    wonderItems.some((text) => !text)
-  ) {
-    showToast("빠진 내용이 있습니다.");
+async function submitSeeStep() {
+  const seeItem = getStepInputValue("see");
+  if (!getStudentName()) {
+    showToast("학생 번호를 골라 주세요.");
+    return;
+  }
+  if (!seeItem) {
+    showToast("보이는 것을 써 주세요.");
     return;
   }
 
   try {
-    await addResponse(response);
+    await appendStudentStep("see", seeItem);
   } catch {
-    showToast("제출하지 못했습니다.");
+    showToast("보기 결과를 제출하지 못했습니다.");
     return;
   }
+
+  clearStepInput("see");
   renderResponses();
-  resetStudentForm();
-  closeConfirmModal();
-  showToast(`✅ ${response.name}이 제출했습니다!`);
-  showRoleView();
+  showToast(`${getStudentName()} 보기 제출 완료`);
+  focusFirstSeeInput();
+}
+
+async function submitThinkStep() {
+  const thought = getStepInputValue("think");
+  if (!thought) {
+    showToast("생각한 것을 써 주세요.");
+    return;
+  }
+
+  try {
+    await appendStudentStep("think", thought);
+  } catch {
+    showToast("생각하기 결과를 제출하지 못했습니다.");
+    return;
+  }
+
+  clearStepInput("think");
+  renderResponses();
+  showToast(`${getStudentName()} 생각하기 제출 완료`);
+  focusFirstThinkInput();
+}
+
+async function submitWonderStep() {
+  const wonderItem = getStepInputValue("wonder");
+  if (!wonderItem) {
+    showToast("궁금한 것을 써 주세요.");
+    return;
+  }
+
+  try {
+    await appendStudentStep("wonder", wonderItem);
+  } catch {
+    showToast("궁금해하기 결과를 제출하지 못했습니다.");
+    return;
+  }
+
+  clearStepInput("wonder");
+  renderResponses();
+  showToast(`${getStudentName()} 궁금해하기 제출 완료`);
+  focusFirstWonderInput();
 }
 
 function showRoleView() {
   stopTeacherPolling();
+  stopStudentStepPolling();
   closeConfirmModal();
-  closeMoveGroupModal();
   elements.roleView.hidden = false;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
 }
 
 async function showTeacherView() {
+  stopStudentStepPolling();
+  await refreshActiveClassStep({ renderStudent: false });
+  activeTeacherStep = activeClassStep;
   await refreshResponses();
   startTeacherPolling();
   elements.roleView.hidden = true;
@@ -204,7 +242,9 @@ function showStudentView() {
   elements.roleView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = false;
-  elements.groupButtons[0]?.focus();
+  elements.studentNumberInput?.focus();
+  refreshActiveClassStep();
+  startStudentStepPolling();
 }
 
 function showStudentStep(step) {
@@ -222,13 +262,12 @@ function showStudentStep(step) {
   });
 
   const titles = {
-    group: { icon: "", text: "모둠" },
-    see: { icon: "👀", text: "식물에서 무엇을 볼 수 있나요?" },
+    student: { icon: "", text: "학생 번호" },
+    see: { icon: "👀", text: "무엇을 볼 수 있나요?" },
     think: { icon: "🤔", text: "식물이 사는 곳에 어떤 도움이 될까요?" },
     wonder: { icon: "❓", text: "더 알고 싶은 점은 무엇인가요?" },
-    review: { icon: "", text: "확인" },
   };
-  const title = titles[step] || titles.group;
+  const title = titles[step] || titles.student;
   elements.studentStepTitle.innerHTML = title.icon
     ? `<span class="step-title-icon" aria-hidden="true">${title.icon}</span><span class="step-title-text">${title.text}</span>`
     : `<span class="step-title-text">${title.text}</span>`;
@@ -243,141 +282,74 @@ function showStudentStep(step) {
 
 function updateStudentTopActions(step) {
   const topActionByStep = {
-    group: { prev: true, next: "다음" },
-    see: { prev: true, next: "다음" },
-    think: { prev: true, next: "다음" },
-    wonder: { prev: true, next: "확인" },
-    review: { prev: true, next: "제출" },
+    student: { prev: true, next: "다음" },
+    see: { prev: false, next: "제출" },
+    think: { prev: false, next: "제출" },
+    wonder: { prev: false, next: "제출" },
   };
-  const action = topActionByStep[step] || topActionByStep.group;
+  const action = topActionByStep[step] || topActionByStep.student;
 
-  elements.topPrevButton.hidden = !action.prev;
+  if (elements.topPrevButton) {
+    elements.topPrevButton.hidden = !action.prev;
+  }
   elements.topNextButton.textContent = action.next;
+  updateStudentSubmitState();
+}
+
+function updateStudentSubmitState() {
+  if (currentStudentStep === "student") {
+    elements.topNextButton.disabled = false;
+    return;
+  }
+
+  elements.topNextButton.disabled = getStepInputValue(currentStudentStep).length === 0;
 }
 
 function goToPreviousStudentStep() {
-  if (currentStudentStep === "group") {
+  if (currentStudentStep === "student") {
     showRoleView();
     return;
   }
 
-  if (currentStudentStep === "see") {
-    showStudentStep("group");
-    elements.groupButtons[0]?.focus();
-    return;
-  }
-
-  if (currentStudentStep === "think") {
-    showStudentStep("see");
-    focusFirstSeeInput();
-    return;
-  }
-
-  if (currentStudentStep === "wonder") {
-    showStudentStep("think");
-    focusFirstThinkInput();
-    return;
-  }
-
-  if (currentStudentStep === "review") {
-    showStudentStep("wonder");
-    focusFirstWonderInput();
-  }
+  showStudentStep("student");
+  elements.studentNumberInput?.focus();
 }
 
 function goToNextStudentStep() {
-  if (currentStudentStep === "group") {
-    goFromGroupToSee();
+  if (currentStudentStep === "student") {
+    goFromStudentToSee();
     return;
   }
 
-  if (currentStudentStep === "see") {
-    goFromSeeToThink();
-    return;
-  }
-
-  if (currentStudentStep === "think") {
-    goFromThinkToWonder();
-    return;
-  }
-
-  if (currentStudentStep === "wonder") {
-    openReviewModalFromWonder();
-    return;
-  }
-
-  if (currentStudentStep === "review") {
-    submitStudentResponse();
-  }
+  submitCurrentStudentStep();
 }
 
-function goFromGroupToSee() {
-  if (!getGroupNumber()) {
-    showToast("모둠을 골라 주세요.");
+function goFromStudentToSee() {
+  const studentNumber = normalizeStudentNumber(elements.studentNumberInput.value);
+  if (!studentNumber) {
+    showToast("1번부터 23번까지 입력해 주세요.");
     return;
   }
 
-  showStudentStep("see");
-  focusFirstSeeInput();
+  selectedStudentNumber = String(studentNumber);
+  loadSelectedStudentResponse();
+  showStudentStep(activeClassStep);
+  focusCurrentStepInput();
 }
 
-function goFromSeeToThink() {
-  const seeItems = getSeeItems();
-  if (seeItems.length === 0) {
-    showToast("보이는 것을 하나 이상 써 주세요.");
-    return;
-  }
-
-  renderThinkRows(seeItems);
-  showStudentStep("think");
-  focusFirstThinkInput();
-}
-
-function goFromThinkToWonder() {
-  const seeItems = getSeeItems();
-  const thoughts = getThoughtItems();
-
-  if (thoughts.length !== seeItems.length || thoughts.some((text) => !text)) {
-    showToast("각 보기마다 생각을 써 주세요.");
-    return;
-  }
-
-  renderWonderRows(seeItems, thoughts);
-  showStudentStep("wonder");
-  focusFirstWonderInput();
-}
-
-function openReviewModalFromWonder() {
-  const seeItems = getSeeItems();
-  const thoughts = getThoughtItems();
-  const thinkSentences = buildThinkSentences(seeItems, thoughts);
-  const wonderItems = getWonderItems();
-
-  if (wonderItems.length !== thinkSentences.length || wonderItems.some((text) => !text)) {
-    showToast("궁금한 것을 모두 써 주세요.");
-    return;
-  }
-
-  openConfirmModal(seeItems, thoughts, wonderItems);
-}
-
-function getGroupNumber() {
-  return selectedGroup;
+function renderEmptyStepInputs() {
+  resetAnswerLists();
+  addSeeRow();
+  renderThinkRows();
+  renderWonderRows();
 }
 
 function addSeeRow(value = "") {
   const row = document.createElement("div");
-  const index = elements.seeList.querySelectorAll(".see-row").length + 1;
-  row.className = `see-row chain-card horizontal-chain see-chain answer-${index}`;
+  row.className = "single-response-card see-response-card";
   row.innerHTML = `
-    <div class="answer-head">
-      <span class="card-number">${index}</span>
-    </div>
-    <label class="routine-field">
-      <span class="routine-label see-label">본 것</span>
-      <span class="chain-block see-block simple-see-block">
-        <textarea class="see-item" rows="1" maxlength="80" placeholder="보이는 걸 적어주세요." autocomplete="off">${escapeHtml(value)}</textarea>
-      </span>
+    <label class="single-response-field">
+      <textarea class="see-item single-response-input" rows="1" maxlength="80" placeholder="보이는 걸 적어주세요." autocomplete="off">${escapeHtml(value)}</textarea>
     </label>
   `;
 
@@ -385,126 +357,39 @@ function addSeeRow(value = "") {
   resizeTextareas(row);
 }
 
-function renderThinkRows(seeItems) {
+function renderThinkRows(value = "") {
   elements.thinkList.innerHTML = "";
-
-  seeItems.forEach((seeItem, index) => {
-    const row = document.createElement("div");
-    row.className = `chain-card horizontal-chain think-chain answer-${index + 1}`;
-    row.innerHTML = `
-      <div class="answer-head">
-        <span class="card-number">${index + 1}</span>
-      </div>
-      <div class="routine-field">
-        <span class="routine-label see-label">본 것</span>
-        <div class="chain-block see-block">
-          <p>${escapeHtml(seeItem)}</p>
-        </div>
-      </div>
-      <label class="routine-field">
-        <span class="routine-label think-label">생각한 것</span>
-        <span class="chain-block think-block">
-          <textarea class="think-item" rows="1" maxlength="120" placeholder="식물이 사는 곳에 어떤 도움이 될지 생각해 보세요." autocomplete="off" data-index="${index}"></textarea>
-        </span>
-      </label>
-    `;
-    elements.thinkList.append(row);
-    resizeTextareas(row);
-  });
+  const row = document.createElement("div");
+  row.className = "single-response-card think-response-card";
+  row.innerHTML = `
+    <label class="single-response-field">
+      <textarea class="think-item single-response-input" rows="1" maxlength="120" placeholder="생각한 것을 적어주세요." autocomplete="off">${escapeHtml(value)}</textarea>
+    </label>
+  `;
+  elements.thinkList.append(row);
+  resizeTextareas(row);
 }
 
-function renderWonderRows(seeItems, thoughts) {
+function renderWonderRows(value = "") {
   elements.wonderList.innerHTML = "";
-
-  seeItems.forEach((seeItem, index) => {
-    const row = document.createElement("div");
-    row.className = `chain-card horizontal-chain wonder-chain answer-${index + 1}`;
-    row.innerHTML = `
-      <div class="answer-head">
-        <span class="card-number">${index + 1}</span>
-      </div>
-      <div class="routine-field">
-        <span class="routine-label see-label">본 것</span>
-        <div class="chain-block see-block">
-          <p>${escapeHtml(seeItem)}</p>
-        </div>
-      </div>
-      <div class="routine-field">
-        <span class="routine-label think-label">생각한 것</span>
-        <div class="chain-block think-block">
-          <p>${escapeHtml(thoughts[index])}</p>
-        </div>
-      </div>
-      <label class="routine-field">
-        <span class="routine-label wonder-label">궁금한 것</span>
-        <span class="chain-block wonder-block">
-          <textarea class="wonder-item" rows="1" maxlength="120" placeholder="질문을 적어주세요." autocomplete="off" data-index="${index}"></textarea>
-        </span>
-      </label>
-    `;
-    elements.wonderList.append(row);
-    resizeTextareas(row);
-  });
-}
-
-function renderReviewRows(seeItems, thoughts, wonderItems) {
-  elements.reviewList.innerHTML = "";
-
-  seeItems.forEach((seeItem, index) => {
-    const row = document.createElement("div");
-    row.className = `chain-card horizontal-chain review-chain answer-${index + 1}`;
-    row.innerHTML = `
-      <div class="answer-head">
-        <span class="card-number">${index + 1}</span>
-      </div>
-      <div class="routine-field">
-        <div class="chain-block see-block">
-          <p>${escapeHtml(seeItem)}</p>
-        </div>
-        <span class="routine-suffix">를 보고</span>
-      </div>
-      <div class="routine-field">
-        <div class="chain-block think-block">
-          <p>${escapeHtml(thoughts[index])}</p>
-        </div>
-        <span class="routine-suffix">라고 생각합니다.</span>
-      </div>
-      <div class="routine-field has-prefix">
-        <span class="routine-prefix">그래서</span>
-        <div class="chain-block wonder-block">
-          <p>${escapeHtml(wonderItems[index])}</p>
-        </div>
-        <span class="routine-suffix">가 궁금합니다.</span>
-      </div>
-    `;
-    elements.reviewList.append(row);
-    resizeTextareas(row);
-  });
-}
-
-function openConfirmModal(seeItems, thoughts, wonderItems) {
-  modalMode = "student";
-  document.querySelector("#confirmModalTitle").textContent = "확인";
-  elements.modalBackButton.hidden = false;
-  elements.modalSubmitButton.textContent = "제출";
-  elements.modalSentenceList.innerHTML = seeItems
-    .map((seeItem, index) => {
-      return renderSentenceCard(seeItem, thoughts[index], wonderItems[index], index);
-    })
-    .join("");
-
-  elements.confirmModal.hidden = false;
-  elements.modalSubmitButton.focus();
+  const row = document.createElement("div");
+  row.className = "single-response-card wonder-response-card";
+  row.innerHTML = `
+    <label class="single-response-field">
+      <textarea class="wonder-item single-response-input" rows="1" maxlength="120" placeholder="궁금한 것을 적어주세요." autocomplete="off">${escapeHtml(value)}</textarea>
+    </label>
+  `;
+  elements.wonderList.append(row);
+  resizeTextareas(row);
 }
 
 function closeConfirmModal() {
   modalMode = "student";
-  closeMoveGroupModal();
   elements.confirmModal.hidden = true;
   elements.confirmModal.classList.remove("teacher-tools-locked");
   elements.modalSentenceList.innerHTML = "";
   elements.modalBackButton.hidden = false;
-  elements.modalSubmitButton.textContent = "제출";
+  elements.modalSubmitButton.textContent = "닫기";
 }
 
 function resizeTextarea(textarea) {
@@ -518,54 +403,43 @@ function resizeTextareas(container = document) {
 }
 
 function completeTextareaEntry(textarea) {
-  const step = textarea.closest(".student-step");
-  const textareas = Array.from(step?.querySelectorAll("textarea") || []);
-  const currentIndex = textareas.indexOf(textarea);
-  const nextTextarea = textareas[currentIndex + 1];
-
-  if (nextTextarea) {
-    nextTextarea.focus();
-    return;
-  }
-
   textarea.blur();
-  goToNextStudentStep();
+  submitCurrentStudentStep();
 }
 
-function getSeeItems() {
-  return Array.from(elements.seeList.querySelectorAll(".see-item"))
-    .map((input) => input.value.trim())
-    .filter(Boolean);
+function getStepInputValue(step) {
+  const inputByStep = {
+    see: elements.seeList.querySelector(".see-item"),
+    think: elements.thinkList.querySelector(".think-item"),
+    wonder: elements.wonderList.querySelector(".wonder-item"),
+  };
+  return inputByStep[step]?.value.trim() || "";
 }
 
-function getThoughtItems() {
-  return Array.from(elements.thinkList.querySelectorAll(".think-item")).map((input) => input.value.trim());
-}
-
-function getWonderItems() {
-  return Array.from(elements.wonderList.querySelectorAll(".wonder-item")).map((input) => input.value.trim());
-}
-
-function buildThinkSentences(seeItems, thoughts) {
-  return seeItems.map((seeItem, index) => `${seeItem}를 보고 ${thoughts[index]}라고 생각합니다.`);
-}
-
-function buildWonderSentences(thinkSentences, wonderItems) {
-  return thinkSentences.map((sentence, index) => `${sentence} 그래서 ${wonderItems[index]}가 궁금합니다.`);
+function clearStepInput(step) {
+  const inputByStep = {
+    see: elements.seeList.querySelector(".see-item"),
+    think: elements.thinkList.querySelector(".think-item"),
+    wonder: elements.wonderList.querySelector(".wonder-item"),
+  };
+  const input = inputByStep[step];
+  if (!input) return;
+  input.value = "";
+  resizeTextarea(input);
+  updateStudentSubmitState();
 }
 
 function resetStudentForm() {
   elements.studentForm.reset();
-  selectedGroup = "";
-  elements.groupButtons.forEach((button) => button.classList.remove("is-selected"));
+  selectedStudentNumber = "";
+  renderEmptyStepInputs();
+  showStudentStep("student");
+}
+
+function resetAnswerLists() {
   elements.seeList.innerHTML = "";
   elements.thinkList.innerHTML = "";
   elements.wonderList.innerHTML = "";
-  elements.reviewList.innerHTML = "";
-  for (let i = 0; i < seeItemCount; i += 1) {
-    addSeeRow();
-  }
-  showStudentStep("group");
 }
 
 function focusFirstSeeInput() {
@@ -578,6 +452,15 @@ function focusFirstThinkInput() {
 
 function focusFirstWonderInput() {
   elements.wonderList.querySelector(".wonder-item")?.focus();
+}
+
+function focusCurrentStepInput() {
+  const focusByStep = {
+    see: focusFirstSeeInput,
+    think: focusFirstThinkInput,
+    wonder: focusFirstWonderInput,
+  };
+  focusByStep[currentStudentStep]?.();
 }
 
 async function initResponses() {
@@ -640,6 +523,21 @@ function stopTeacherPolling() {
   teacherPollId = null;
 }
 
+function startStudentStepPolling() {
+  stopStudentStepPolling();
+  studentStepPollId = window.setInterval(() => {
+    if (!elements.studentView.hidden) {
+      refreshActiveClassStep();
+    }
+  }, 2000);
+}
+
+function stopStudentStepPolling() {
+  if (!studentStepPollId) return;
+  window.clearInterval(studentStepPollId);
+  studentStepPollId = null;
+}
+
 async function loadResponses() {
   if (!isSupabaseReady()) {
     throw new Error("Supabase is not configured");
@@ -649,11 +547,116 @@ async function loadResponses() {
   return rows.map(fromSupabaseRow);
 }
 
-async function addResponse(response) {
+async function refreshActiveClassStep(options = {}) {
+  const { renderStudent = true } = options;
+  const previousStep = activeClassStep;
+
+  try {
+    activeClassStep = await loadActiveClassStep();
+  } catch {
+    activeClassStep = previousStep || "see";
+  }
+
+  if (!isTeacherStep(activeClassStep)) {
+    activeClassStep = "see";
+  }
+
+  if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student" && currentStudentStep !== activeClassStep) {
+    showStudentStep(activeClassStep);
+    focusCurrentStepInput();
+  }
+
+  return activeClassStep;
+}
+
+async function loadActiveClassStep() {
+  if (!isSupabaseReady()) {
+    return activeClassStep || "see";
+  }
+
+  const rows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(activeStepSettingId)}&select=value&limit=1`
+  );
+  const step = rows[0]?.value;
+  return isTeacherStep(step) ? step : "see";
+}
+
+async function saveActiveClassStep(step) {
+  if (!isTeacherStep(step)) return;
+  activeClassStep = step;
+
   if (!isSupabaseReady()) {
     throw new Error("Supabase is not configured");
   }
 
+  const payload = {
+    id: activeStepSettingId,
+    value: step,
+    updated_at: new Date().toISOString(),
+  };
+
+  const existingRows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(activeStepSettingId)}&select=id&limit=1`
+  );
+
+  if (existingRows[0]) {
+    await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(activeStepSettingId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    return;
+  }
+
+  await supabaseRequest(`/${supabaseSettingsTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function appendStudentStep(step, value) {
+  const studentName = getStudentName();
+  const existingResponse = getResponseByStudentName(studentName);
+  const existingValues = normalizeList(existingResponse?.[step]).filter(Boolean);
+  return await saveStudentStep(step, [...existingValues, value]);
+}
+
+async function saveStudentStep(step, values) {
+  if (!isSupabaseReady()) {
+    throw new Error("Supabase is not configured");
+  }
+
+  const studentName = getStudentName();
+  const existingResponse = getResponseByStudentName(studentName);
+  const payload = { [step]: values };
+
+  if (existingResponse) {
+    try {
+      const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(existingResponse.id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      });
+      if (!rows[0]) {
+        throw new Error("Supabase update did not return a row");
+      }
+      const updatedResponse = fromSupabaseRow(rows[0]);
+      responses = responses.map((item) => (item.id === updatedResponse.id ? updatedResponse : item));
+      return updatedResponse;
+    } catch {
+      return await replaceResponseByInsert(existingResponse, payload);
+    }
+  }
+
+  const response = {
+    id: createId(),
+    name: studentName,
+    see: step === "see" ? values : [],
+    think: step === "think" ? values : [],
+    wonder: step === "wonder" ? values : [],
+    createdAt: new Date().toISOString(),
+  };
   const rows = await supabaseRequest(`/${supabaseTable}`, {
     method: "POST",
     headers: { Prefer: "return=representation" },
@@ -662,7 +665,31 @@ async function addResponse(response) {
   if (!rows[0]) {
     throw new Error("Supabase insert did not return a row");
   }
-  responses = [fromSupabaseRow(rows[0]), ...responses];
+  const createdResponse = fromSupabaseRow(rows[0]);
+  responses = [createdResponse, ...responses];
+  return createdResponse;
+}
+
+async function replaceResponseByInsert(existingResponse, payload) {
+  const replacement = {
+    ...existingResponse,
+    ...payload,
+    id: createId(),
+  };
+
+  const rows = await supabaseRequest(`/${supabaseTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify(toSupabaseRow(replacement)),
+  });
+  if (!rows[0]) {
+    throw new Error("Supabase insert did not return a replacement row");
+  }
+
+  await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(existingResponse.id)}`, { method: "DELETE" });
+  const updatedResponse = fromSupabaseRow(rows[0]);
+  responses = [updatedResponse, ...responses.filter((item) => item.id !== existingResponse.id)];
+  return updatedResponse;
 }
 
 async function clearResponses() {
@@ -683,34 +710,32 @@ async function deleteResponse(responseId) {
   responses = responses.filter((item) => item.id !== responseId);
 }
 
-async function moveResponse(responseId, targetGroupName) {
+async function deleteStepAnswer(responseId, step, answerIndex) {
   if (!isSupabaseReady()) {
     throw new Error("Supabase is not configured");
   }
 
   const originalResponse = responses.find((item) => item.id === responseId);
-  if (!originalResponse) {
-    throw new Error("Response not found");
+  if (!originalResponse || !["see", "think", "wonder"].includes(step)) {
+    throw new Error("Answer not found");
   }
 
-  const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(responseId)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ name: targetGroupName }),
-  });
-  if (rows[0]) {
+  const nextValues = normalizeList(originalResponse[step]).filter((_, index) => index !== answerIndex);
+  try {
+    const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(responseId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({ [step]: nextValues }),
+    });
+    if (!rows[0]) {
+      throw new Error("Supabase update did not return a row");
+    }
+
     const updatedResponse = fromSupabaseRow(rows[0]);
     responses = responses.map((item) => (item.id === responseId ? updatedResponse : item));
-    return;
+  } catch {
+    await replaceResponseByInsert(originalResponse, { [step]: nextValues });
   }
-
-  const movedResponse = {
-    ...originalResponse,
-    id: createId(),
-    name: targetGroupName,
-  };
-  await addResponse(movedResponse);
-  await deleteResponse(responseId);
 }
 
 function isSupabaseReady() {
@@ -763,189 +788,303 @@ function fromSupabaseRow(row) {
   return {
     id: row.id,
     name: row.name,
-    see: row.see || [],
-    think: row.think || [],
-    wonder: row.wonder || [],
+    see: normalizeList(row.see),
+    think: normalizeList(row.think),
+    wonder: normalizeList(row.wonder),
     createdAt: row.created_at,
   };
 }
 
 function renderResponses() {
-  elements.emptyState.hidden = responses.length > 0;
+  elements.emptyState.hidden = true;
+  elements.teacherTopTabs.innerHTML = "";
+  elements.teacherTopTabs.append(renderTeacherTabs());
   elements.responseList.innerHTML = "";
+  elements.responseList.append(renderTeacherDashboard());
+}
 
-  const groupGrid = document.createElement("div");
-  groupGrid.className = "teacher-group-grid";
-  groupGrid.innerHTML = Array.from({ length: groupCount }, (_, index) => {
-    const groupName = `${index + 1}모둠`;
-    const groupResponses = getResponsesByGroup(groupName);
-    const disabled = groupResponses.length === 0 ? "disabled" : "";
-    const countText = groupResponses.length === 0 ? "없음" : `${groupResponses.length}개`;
+function renderTeacherDashboard() {
+  const dashboard = document.createElement("section");
+  dashboard.className = `teacher-dashboard is-${activeTeacherStep}`;
+  dashboard.append(renderTeacherDashboardBody());
+  return dashboard;
+}
 
-    return `
-      <button class="teacher-group-button" type="button" data-teacher-group="${index + 1}" ${disabled}>
-        <span>${groupName}</span>
-        <small>${countText}</small>
-      </button>
-    `;
-  }).join("");
+function renderTeacherDashboardBody() {
+  const body = document.createElement("div");
+  body.className = "teacher-dashboard-body";
+  body.append(renderSubmissionStatusPanel(), renderCollectedAnswersPanel());
+  return body;
+}
 
-  groupGrid.querySelectorAll("[data-teacher-group]").forEach((button) => {
-    button.addEventListener("click", () => {
-      openTeacherGroupModal(`${button.dataset.teacherGroup}모둠`);
+function renderSubmissionStatusPanel() {
+  const panel = document.createElement("section");
+  panel.className = "teacher-dashboard-panel teacher-status-panel";
+  panel.append(renderTeacherStudentGrid());
+  return panel;
+}
+
+function renderCollectedAnswersPanel() {
+  const panel = document.createElement("section");
+  panel.className = "teacher-dashboard-panel teacher-collected-panel";
+  panel.innerHTML = `
+    ${renderCollectedAnswers(activeTeacherStep)}
+  `;
+  panel.querySelectorAll("[data-delete-answer]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const responseId = button.dataset.responseId;
+      const step = button.dataset.answerStep;
+      const answerIndex = Number(button.dataset.answerIndex);
+      if (!responseId || !step || !Number.isInteger(answerIndex)) return;
+
+      try {
+        await deleteStepAnswer(responseId, step, answerIndex);
+        renderResponses();
+        showToast("답변을 지웠습니다.");
+      } catch {
+        showToast("답변을 지우지 못했습니다.");
+      }
     });
   });
-
-  elements.responseList.append(groupGrid);
+  return panel;
 }
 
-function getResponsesByGroup(groupName) {
-  return responses.filter((item) => item.name === groupName);
-}
-
-function openTeacherGroupModal(groupName) {
-  const groupResponses = getResponsesByGroup(groupName);
-
-  modalMode = "teacher";
-  document.querySelector("#confirmModalTitle").textContent = groupName;
-  elements.modalBackButton.hidden = true;
-  elements.modalSubmitButton.textContent = "닫기";
-  elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
-  elements.modalSentenceList.innerHTML = groupResponses
-    .map((item, index) => {
+function renderTeacherTabs() {
+  const tabs = document.createElement("div");
+  tabs.className = `teacher-step-tabs is-${activeTeacherStep}`;
+  tabs.setAttribute("role", "tablist");
+  tabs.setAttribute("aria-label", "결과 단계 선택");
+  tabs.innerHTML = Object.entries(teacherSteps)
+    .map(([step, config]) => {
+      const selected = step === activeTeacherStep;
+      const count = getStudentResponses().filter((item) => hasSubmittedStep(item, step)).length;
       return `
-        <section class="teacher-response-set">
-          <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(item.id)}" aria-label="답변 비우기" title="비우기">
-            🗑️
-          </button>
-          ${renderResponseChains(item)}
-        </section>
+        <button class="teacher-step-tab ${selected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${selected}" data-teacher-step="${step}">
+          <span>${config.label}</span>
+          <small>${count}/${studentCount}</small>
+        </button>
       `;
     })
     .join("");
 
-  elements.modalSentenceList.querySelectorAll(".teacher-response-set").forEach((set, index) => {
-    const response = groupResponses[index];
-    if (!response) return;
-
-    const moveButton = document.createElement("button");
-    moveButton.className = "icon-move-button";
-    moveButton.type = "button";
-    moveButton.dataset.moveResponse = response.id;
-    moveButton.setAttribute("aria-label", "답변 옮기기");
-    moveButton.title = "옮기기";
-    moveButton.textContent = "옮기기";
-    set.append(moveButton);
-  });
-
-  elements.modalSentenceList.querySelectorAll("[data-move-response]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const responseId = button.dataset.moveResponse;
-      if (!responseId) return;
-      openMoveGroupModal(responseId, groupName);
-    });
-  });
-
-  elements.modalSentenceList.querySelectorAll("[data-delete-response]").forEach((button) => {
+  tabs.querySelectorAll("[data-teacher-step]").forEach((button) => {
     button.addEventListener("click", async () => {
-      const responseId = button.dataset.deleteResponse;
-      if (!responseId || !window.confirm("이 답변을 비울까요?")) return;
+      const nextStep = button.dataset.teacherStep;
+      if (!isTeacherStep(nextStep)) return;
+
+      activeTeacherStep = nextStep;
+      activeClassStep = nextStep;
+      renderResponses();
 
       try {
-        await deleteResponse(responseId);
-        renderResponses();
-        const remainingResponses = getResponsesByGroup(groupName);
-        if (remainingResponses.length === 0) {
-          closeConfirmModal();
-          showToast("비웠습니다.");
-          return;
-        }
-        openTeacherGroupModal(groupName);
-        showToast("비웠습니다.");
+        await saveActiveClassStep(nextStep);
       } catch {
-        showToast("답변을 비우지 못했습니다.");
+        showToast("단계를 바꾸지 못했습니다.");
       }
     });
+  });
+
+  return tabs;
+}
+
+function renderTeacherStudentGrid() {
+  const grid = document.createElement("div");
+  grid.className = "teacher-student-grid";
+  grid.innerHTML = Array.from({ length: studentCount }, (_, index) => {
+    const studentName = `${index + 1}번`;
+    const response = getResponseByStudentName(studentName);
+    const values = normalizeList(response?.[activeTeacherStep]).filter(Boolean);
+    const submitted = values.length > 0;
+    return `
+      <button class="teacher-student-button ${submitted ? "is-submitted" : "is-empty"}" type="button" data-teacher-student="${index + 1}" ${submitted ? "" : "disabled"}>
+        <span>${index + 1}</span>
+      </button>
+    `;
+  }).join("");
+
+  grid.querySelectorAll("[data-teacher-student]:not(:disabled)").forEach((button) => {
+    button.addEventListener("click", () => {
+      openTeacherStudentModal(`${button.dataset.teacherStudent}번`, activeTeacherStep);
+    });
+  });
+
+  return grid;
+}
+
+function renderCollectedAnswers(step) {
+  const cards = getCollectedStepAnswers(step);
+  if (cards.length === 0) {
+    return `<div class="teacher-step-empty">${teacherSteps[step].empty}</div>`;
+  }
+
+  return `
+    <div class="teacher-postit-grid" aria-label="${teacherSteps[step].label} 전체 답변">
+      ${cards
+        .map((card, index) => `
+          <article class="postit-card answer-${(index % answerAccentCount) + 1}">
+            <button
+              class="postit-delete-button"
+              type="button"
+              data-delete-answer
+              data-response-id="${escapeAttribute(card.responseId)}"
+              data-answer-step="${escapeAttribute(card.step)}"
+              data-answer-index="${card.answerIndex}"
+              aria-label="답변 지우기"
+              title="지우기"
+            >
+              X
+            </button>
+            <div class="postit-content">${card.compact}</div>
+          </article>
+        `)
+        .join("")}
+    </div>
+  `;
+}
+
+function getCollectedStepAnswers(step) {
+  return Array.from({ length: studentCount }, (_, index) => getResponseByStudentName(`${index + 1}번`))
+    .filter(Boolean)
+    .flatMap((response) => buildCollectedStepCards(response, step));
+}
+
+function buildCollectedStepCards(response, step) {
+  const seeItems = normalizeList(response.see);
+  const thinkItems = normalizeList(response.think);
+  const wonderItems = normalizeList(response.wonder);
+  const buildCard = (value, answerIndex, blockClass) => ({
+    responseId: response.id,
+    step,
+    answerIndex,
+    compact: `<p>${escapeHtml(value)}</p>`,
+    large: `<p><span class="sentence-block ${blockClass}">${escapeHtml(value)}</span></p>`,
+  });
+
+  if (step === "see") {
+    return seeItems.map((value, index) => ({ value, index })).filter((item) => item.value).map((item) => buildCard(item.value, item.index, "see-block"));
+  }
+
+  if (step === "think") {
+    return thinkItems.map((value, index) => ({ value, index })).filter((item) => item.value).map((item) => buildCard(item.value, item.index, "think-block"));
+  }
+
+  return wonderItems.map((value, index) => ({ value, index })).filter((item) => item.value).map((item) => buildCard(item.value, item.index, "wonder-block"));
+}
+
+function openTeacherStudentModal(studentName, step) {
+  const response = getResponseByStudentName(studentName);
+  if (!response) return;
+
+  modalMode = "teacher";
+  document.querySelector("#confirmModalTitle").textContent = `${studentName} ${teacherSteps[step].label}`;
+  elements.modalBackButton.hidden = true;
+  elements.modalSubmitButton.textContent = "닫기";
+  elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
+  elements.modalSentenceList.innerHTML = `
+    <section class="teacher-response-set">
+      <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(response.id)}" aria-label="학생 답변 비우기" title="비우기">
+        삭제
+      </button>
+      ${renderStepResponse(response, step)}
+    </section>
+  `;
+
+  elements.modalSentenceList.querySelector("[data-delete-response]")?.addEventListener("click", async (event) => {
+    const responseId = event.currentTarget.dataset.deleteResponse;
+    if (!responseId || !window.confirm(`${studentName}의 답변을 모두 비울까요?`)) return;
+
+    try {
+      await deleteResponse(responseId);
+      renderResponses();
+      closeConfirmModal();
+      showToast("비웠습니다.");
+    } catch {
+      showToast("답변을 비우지 못했습니다.");
+    }
   });
 
   elements.confirmModal.hidden = false;
   elements.modalSubmitButton.focus();
 }
 
-function openMoveGroupModal(responseId, currentGroupName) {
-  pendingMove = { responseId, currentGroupName };
-  elements.moveGroupGrid.querySelectorAll("[data-move-target-group]").forEach((button) => {
-    const targetGroupName = `${button.dataset.moveTargetGroup}모둠`;
-    button.disabled = targetGroupName === currentGroupName;
-  });
-  elements.moveGroupModal.hidden = false;
-  elements.moveGroupGrid.querySelector("[data-move-target-group]:not(:disabled)")?.focus();
-}
-
-function closeMoveGroupModal() {
-  pendingMove = null;
-  elements.moveGroupModal.hidden = true;
-}
-
-async function submitMoveToGroup(groupNumber) {
-  if (!pendingMove) return;
-
-  const { responseId, currentGroupName } = pendingMove;
-  const targetGroupName = `${groupNumber}모둠`;
-  if (targetGroupName === currentGroupName) {
-    showToast("이미 같은 모둠에 있습니다.");
-    return;
-  }
-
-  try {
-    await moveResponse(responseId, targetGroupName);
-    closeMoveGroupModal();
-    renderResponses();
-    const remainingResponses = getResponsesByGroup(currentGroupName);
-    if (remainingResponses.length === 0) {
-      closeConfirmModal();
-    } else {
-      openTeacherGroupModal(currentGroupName);
-    }
-    showToast(`${targetGroupName}으로 옮겼습니다.`);
-  } catch {
-    showToast("답변을 옮기지 못했습니다.");
-  }
-}
-
-function renderResponseChains(item) {
+function renderStepResponse(item, step) {
   const seeItems = normalizeList(item.see);
   const thinkItems = normalizeList(item.think);
   const wonderItems = normalizeList(item.wonder);
 
+  if (step === "see") {
+    return renderValueCards(seeItems, "see", (value) => `<p><span class="sentence-block see-block">${escapeHtml(value)}</span></p>`);
+  }
+
+  if (step === "think") {
+    return renderValueCards(thinkItems, "think", (value) => `<p><span class="sentence-block think-block">${escapeHtml(value)}</span></p>`);
+  }
+
+  return renderValueCards(wonderItems, "wonder", (value) => `<p><span class="sentence-block wonder-block">${escapeHtml(value)}</span></p>`);
+}
+
+function renderValueCards(values, step, contentBuilder) {
+  const submittedValues = normalizeList(values).filter(Boolean);
+  if (submittedValues.length === 0) {
+    return `<div class="teacher-step-empty">${teacherSteps[step].empty}</div>`;
+  }
+
   return `
-    <div class="teacher-sentence-list" aria-label="모둠 결과">
-      ${seeItems
-        .map((seeItem, index) => {
-          return `
-            ${renderSentenceCard(seeItem, thinkItems[index] || "", wonderItems[index] || "", index)}
-          `;
-        })
+    <div class="teacher-sentence-list" aria-label="${teacherSteps[step].label} 결과">
+      ${submittedValues
+        .map((value, index) => `
+          <article class="sentence-card answer-${index + 1}">
+            <span class="card-number">${index + 1}</span>
+            <div class="sentence-lines">${contentBuilder(value, index)}</div>
+          </article>
+        `)
         .join("")}
     </div>
   `;
 }
 
-function renderSentenceCard(seeItem, thought, wonderItem, index) {
-  return `
-    <article class="sentence-card answer-${index + 1}">
-      <span class="card-number">${index + 1}</span>
-      <div class="sentence-lines">
-        <p><span class="sentence-block see-block">${escapeHtml(seeItem)}</span> 를 보고</p>
-        <p><span class="sentence-block think-block">${escapeHtml(thought)}</span> 라고 생각합니다.</p>
-        <p><strong>그래서</strong> <span class="sentence-block wonder-block">${escapeHtml(wonderItem)}</span> 가 궁금합니다.</p>
-      </div>
-    </article>
-  `;
+function hasSubmittedStep(response, step) {
+  return normalizeList(response?.[step]).filter(Boolean).length > 0;
+}
+
+function isTeacherStep(step) {
+  return Object.prototype.hasOwnProperty.call(teacherSteps, step);
+}
+
+function getSelectedStudentResponse() {
+  return getResponseByStudentName(getStudentName());
+}
+
+function getResponseByStudentName(studentName) {
+  if (!studentName) return null;
+  return responses.find((item) => item.name === studentName) || null;
+}
+
+function getStudentResponses() {
+  return responses.filter((item) => isStudentName(item.name));
+}
+
+function isStudentName(name) {
+  const match = /^(\d+)번$/.exec(name || "");
+  if (!match) return false;
+  const number = Number(match[1]);
+  return number >= 1 && number <= studentCount;
+}
+
+function getStudentName() {
+  return selectedStudentNumber ? `${selectedStudentNumber}번` : "";
+}
+
+function normalizeStudentNumber(value) {
+  const number = Number.parseInt(String(value).trim(), 10);
+  if (!Number.isInteger(number) || number < 1 || number > studentCount) {
+    return null;
+  }
+  return number;
 }
 
 function normalizeList(value) {
-  return Array.isArray(value) ? value : [value];
+  return Array.isArray(value) ? value : value ? [value] : [];
 }
 
 function escapeHtml(value) {
@@ -967,28 +1106,6 @@ function createId() {
   }
 
   return `stw-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-async function copyText(text) {
-  if (navigator.clipboard && window.isSecureContext) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  const tempInput = document.createElement("textarea");
-  tempInput.value = text;
-  tempInput.setAttribute("readonly", "");
-  tempInput.style.position = "fixed";
-  tempInput.style.left = "-9999px";
-  document.body.append(tempInput);
-  tempInput.select();
-
-  const copied = document.execCommand("copy");
-  tempInput.remove();
-
-  if (!copied) {
-    throw new Error("Copy command failed");
-  }
 }
 
 function showToast(message) {
