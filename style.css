@@ -646,40 +646,70 @@ textarea {
 
 .combined-response-card {
   display: grid;
-  gap: 20px;
-  padding: 26px;
+  gap: 24px;
+  padding: 28px 30px;
   border: 2px solid #000000;
   border-radius: 18px;
   background: #ffffff;
   color: #000000;
-  font-size: clamp(2rem, 3.2vw, 3rem);
+  font-size: clamp(1.9rem, 2.8vw, 3rem);
   font-weight: 900;
   line-height: 1.35;
 }
 
 .combined-response-card p {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: max-content minmax(560px, 1fr) max-content;
+  gap: 12px;
   align-items: center;
   margin: 0;
 }
 
+.combined-response-card p:nth-child(2) {
+  grid-template-columns: minmax(680px, 1fr) max-content;
+}
+
 .combined-inline-input {
-  flex: 1 1 260px;
-  min-height: 66px;
-  padding: 10px 14px;
+  width: 100%;
+  min-height: 72px;
+  height: 72px;
+  padding: 8px 18px;
   border: 2px solid #000000;
   border-radius: 12px;
   background: #ffffff;
   font-size: inherit;
-  line-height: 1.2;
-  resize: none;
-  overflow: hidden;
+  font-weight: 900;
+  line-height: 1;
+  overflow: visible;
+  word-break: keep-all;
 }
 
 .combined-inline-input:not(:placeholder-shown) {
   background: var(--block-lime);
+}
+
+.combined-see-item {
+  background: var(--block-lime);
+}
+
+.combined-think-item {
+  background: var(--block-lilac);
+}
+
+.combined-wonder-item {
+  background: var(--block-cream);
+}
+
+.combined-see-item:not(:placeholder-shown) {
+  background: var(--block-lime);
+}
+
+.combined-think-item:not(:placeholder-shown) {
+  background: var(--block-lilac);
+}
+
+.combined-wonder-item:not(:placeholder-shown) {
+  background: var(--block-cream);
 }
 
 .student-waiting-card {
@@ -1881,9 +1911,13 @@ button:disabled {
 }
 
 .student-step {
-  padding: 48px;
+  padding: 36px;
   border: 2px solid #000000;
   border-radius: 24px;
+}
+
+[data-step="combined"] {
+  padding: 34px 38px;
 }
 
 [data-step="group"],
@@ -2171,6 +2205,20 @@ textarea,
     min-height: 140px;
     padding: 20px;
     font-size: clamp(1.8rem, 8vw, 2.5rem);
+  }
+
+  .combined-response-card {
+    padding: 22px;
+    font-size: clamp(1.55rem, 7vw, 2.2rem);
+  }
+
+  .combined-response-card p {
+    grid-template-columns: 1fr;
+  }
+
+  .combined-inline-input {
+    height: 64px;
+    min-height: 64px;
   }
 
   button {

@@ -510,18 +510,17 @@ function renderCombinedRows(values = {}) {
   row.innerHTML = `
     <p>
       <span>저는</span>
-      <textarea class="combined-see-item combined-inline-input" rows="1" maxlength="80" placeholder="보기" autocomplete="off">${escapeHtml(values.see || "")}</textarea>
-      <span>을/를 보았습니다.</span>
+      <input class="combined-see-item combined-inline-input" maxlength="80" placeholder="보기" autocomplete="off" value="${escapeAttribute(values.see || "")}" />
+      <span>을/를 보고,</span>
     </p>
     <p>
-      <span>그 모습을 보고</span>
-      <textarea class="combined-think-item combined-inline-input" rows="1" maxlength="120" placeholder="생각하기" autocomplete="off">${escapeHtml(values.think || "")}</textarea>
+      <input class="combined-think-item combined-inline-input" maxlength="120" placeholder="생각하기" autocomplete="off" value="${escapeAttribute(values.think || "")}" />
       <span>라고 생각합니다.</span>
     </p>
     <p>
       <span>그래서</span>
-      <textarea class="combined-wonder-item combined-inline-input" rows="1" maxlength="120" placeholder="궁금해하기" autocomplete="off">${escapeHtml(values.wonder || "")}</textarea>
-      <span>이/가 궁금합니다.</span>
+      <input class="combined-wonder-item combined-inline-input" maxlength="120" placeholder="궁금해하기" autocomplete="off" value="${escapeAttribute(values.wonder || "")}" />
+      <span>가 궁금합니다.</span>
     </p>
   `;
   elements.combinedList.append(row);
@@ -614,9 +613,8 @@ function clearStepInput(step) {
 }
 
 function clearCombinedInputs() {
-  elements.combinedList.querySelectorAll("textarea").forEach((input) => {
+  elements.combinedList.querySelectorAll("input").forEach((input) => {
     input.value = "";
-    resizeTextarea(input);
   });
   updateStudentSubmitState();
 }
@@ -1441,9 +1439,9 @@ function getCollectedCombinedAnswers() {
 
 function renderCombinedSentence(item) {
   return `
-    <p>저는 <strong>${escapeHtml(item.see)}</strong>을/를 보았습니다.</p>
-    <p>그 모습을 보고 <strong>${escapeHtml(item.think)}</strong>라고 생각합니다.</p>
-    <p>그래서 <strong>${escapeHtml(item.wonder)}</strong>이/가 궁금합니다.</p>
+    <p>저는 <strong>${escapeHtml(item.see)}</strong>을/를 보고,</p>
+    <p><strong>${escapeHtml(item.think)}</strong>라고 생각합니다.</p>
+    <p>그래서 <strong>${escapeHtml(item.wonder)}</strong>가 궁금합니다.</p>
   `;
 }
 
