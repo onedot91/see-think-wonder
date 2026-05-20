@@ -27,6 +27,7 @@ const elements = {
   studentForm: document.querySelector("#studentForm"),
   topPrevButton: document.querySelector("#topPrevButton"),
   topNextButton: document.querySelector("#topNextButton"),
+  studentResultButton: document.querySelector("#studentResultButton"),
   groupButtons: document.querySelector("#groupButtons"),
   studentNumberInput: document.querySelector("#studentNumberInput"),
   seeList: document.querySelector("#seeList"),
@@ -101,6 +102,10 @@ elements.topPrevButton?.addEventListener("click", () => {
 
 elements.topNextButton.addEventListener("click", () => {
   goToNextStudentStep();
+});
+
+elements.studentResultButton?.addEventListener("click", () => {
+  openStudentResults();
 });
 
 elements.studentForm.addEventListener("submit", (event) => {
@@ -264,7 +269,7 @@ function showStudentStep(step) {
   const titles = {
     student: { icon: "", text: "학생 번호" },
     see: { icon: "👀", text: "무엇을 볼 수 있나요?" },
-    think: { icon: "🤔", text: "식물이 사는 곳에 어떤 도움이 될까요?" },
+    think: { icon: "🤔", text: "어떤 생각이 드나요?" },
     wonder: { icon: "❓", text: "더 알고 싶은 점은 무엇인가요?" },
   };
   const title = titles[step] || titles.student;
@@ -297,12 +302,20 @@ function updateStudentTopActions(step) {
 }
 
 function updateStudentSubmitState() {
+  const isAnswerStep = isTeacherStep(currentStudentStep);
+
   if (currentStudentStep === "student") {
     elements.topNextButton.disabled = false;
+    if (elements.studentResultButton) {
+      elements.studentResultButton.hidden = true;
+    }
     return;
   }
 
-  elements.topNextButton.disabled = getStepInputValue(currentStudentStep).length === 0;
+  elements.topNextButton.disabled = !isAnswerStep || getStepInputValue(currentStudentStep).length === 0;
+  if (elements.studentResultButton) {
+    elements.studentResultButton.hidden = !hasSubmittedStep(getSelectedStudentResponse(), currentStudentStep);
+  }
 }
 
 function goToPreviousStudentStep() {
@@ -387,9 +400,32 @@ function closeConfirmModal() {
   modalMode = "student";
   elements.confirmModal.hidden = true;
   elements.confirmModal.classList.remove("teacher-tools-locked");
+  elements.confirmModal.classList.remove("student-results-modal");
   elements.modalSentenceList.innerHTML = "";
   elements.modalBackButton.hidden = false;
   elements.modalSubmitButton.textContent = "닫기";
+}
+
+async function openStudentResults() {
+  if (!isTeacherStep(currentStudentStep) || !hasSubmittedStep(getSelectedStudentResponse(), currentStudentStep)) {
+    return;
+  }
+
+  try {
+    await refreshResponses();
+  } catch {
+    return;
+  }
+
+  modalMode = "student-results";
+  document.querySelector("#confirmModalTitle").textContent = `${teacherSteps[currentStudentStep].label} 결과`;
+  elements.modalBackButton.hidden = true;
+  elements.modalSubmitButton.textContent = "닫기";
+  elements.confirmModal.classList.remove("teacher-tools-locked");
+  elements.confirmModal.classList.add("student-results-modal");
+  elements.modalSentenceList.innerHTML = renderCollectedAnswers(currentStudentStep, { showDelete: false });
+  elements.confirmModal.hidden = false;
+  elements.modalSubmitButton.focus();
 }
 
 function resizeTextarea(textarea) {
@@ -925,7 +961,8 @@ function renderTeacherStudentGrid() {
   return grid;
 }
 
-function renderCollectedAnswers(step) {
+function renderCollectedAnswers(step, options = {}) {
+  const { showDelete = true } = options;
   const cards = getCollectedStepAnswers(step);
   if (cards.length === 0) {
     return `<div class="teacher-step-empty">${teacherSteps[step].empty}</div>`;
@@ -936,7 +973,7 @@ function renderCollectedAnswers(step) {
       ${cards
         .map((card, index) => `
           <article class="postit-card answer-${(index % answerAccentCount) + 1}">
-            <button
+            ${showDelete ? `<button
               class="postit-delete-button"
               type="button"
               data-delete-answer
@@ -947,7 +984,7 @@ function renderCollectedAnswers(step) {
               title="지우기"
             >
               X
-            </button>
+            </button>` : ""}
             <div class="postit-content">${card.compact}</div>
           </article>
         `)
