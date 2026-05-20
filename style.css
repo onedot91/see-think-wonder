@@ -717,8 +717,10 @@ textarea {
   .student-step.is-entering .group-button,
   .student-step.is-entering .chain-card,
   .student-step.is-entering .action-bar,
-  .student-step.is-entering .routine-field {
+  .student-step.is-entering .routine-field,
+  .postit-card {
     animation: none;
+    transition: none;
   }
 }
 
@@ -1132,6 +1134,18 @@ button {
   border: 2px solid #000000;
   border-radius: 14px;
   background: var(--block-mint);
+  transform-origin: 50% 50%;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease,
+    filter 200ms ease;
+}
+
+.postit-card.is-removing {
+  opacity: 0;
+  filter: blur(1px);
+  pointer-events: none;
+  transform: scale(0.94) translateY(-6px);
 }
 
 .postit-delete-button {
@@ -1164,6 +1178,10 @@ button {
   opacity: 0.82;
   pointer-events: auto;
   transform: none;
+}
+
+.postit-card.is-removing .postit-delete-button {
+  opacity: 0;
 }
 
 .teacher-dashboard.is-think .postit-card {

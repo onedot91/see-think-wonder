@@ -837,16 +837,30 @@ function renderCollectedAnswersPanel() {
       const answerIndex = Number(button.dataset.answerIndex);
       if (!responseId || !step || !Number.isInteger(answerIndex)) return;
 
+      const card = button.closest(".postit-card");
+      button.disabled = true;
+      card?.classList.add("is-removing");
+      await waitForCardExit(card);
+
       try {
         await deleteStepAnswer(responseId, step, answerIndex);
         renderResponses();
         showToast("답변을 지웠습니다.");
       } catch {
+        button.disabled = false;
+        card?.classList.remove("is-removing");
         showToast("답변을 지우지 못했습니다.");
       }
     });
   });
   return panel;
+}
+
+function waitForCardExit(card) {
+  if (!card) return Promise.resolve();
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, 220);
+  });
 }
 
 function renderTeacherTabs() {
