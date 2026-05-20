@@ -389,7 +389,8 @@ function renderWonderRows(value = "") {
   row.className = "single-response-card wonder-response-card";
   row.innerHTML = `
     <label class="single-response-field">
-      <textarea class="wonder-item single-response-input" rows="1" maxlength="120" placeholder="궁금한 것을 적어주세요." autocomplete="off">${escapeHtml(value)}</textarea>
+      <textarea class="wonder-item single-response-input" rows="1" maxlength="120" placeholder="궁금한 것을 적어주세요.
+(물음표로 끝나야 합니다)" autocomplete="off">${escapeHtml(value)}</textarea>
     </label>
   `;
   elements.wonderList.append(row);
