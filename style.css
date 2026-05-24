@@ -1318,7 +1318,7 @@ button {
   object-fit: contain;
 }
 
-.teacher-clear-all-button {
+.teacher-export-clear-button {
   min-width: 220px;
   min-height: 62px;
   font-size: 1.45rem;

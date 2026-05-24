@@ -123,7 +123,7 @@ elements.teacherClearTrigger?.addEventListener("click", (event) => {
   teacherClearAllClickCount += 1;
   if (teacherClearAllClickCount >= 3) {
     teacherClearAllUnlocked = true;
-    showToast("전체 삭제 버튼을 표시합니다.");
+    showToast("결과 내보내기 버튼을 표시합니다.");
     renderResponses();
   }
 });
@@ -1489,6 +1489,7 @@ async function saveClassModeSetting(value) {
 }
 
 async function appendStudentStep(step, value) {
+  await refreshResponsesCache();
   const studentName = getStudentName();
   const existingResponse = getResponseByStudentName(studentName);
   const existingValues = normalizeList(existingResponse?.[step]).filter(Boolean);
@@ -1496,10 +1497,15 @@ async function appendStudentStep(step, value) {
 }
 
 async function appendCombinedStep(value) {
+  await refreshResponsesCache();
   const studentName = getStudentName();
   const existingResponse = getResponseByStudentName(studentName);
   const existingValues = normalizeCombinedList(existingResponse?.combined);
   return await saveCombinedStep([...existingValues, value]);
+}
+
+async function refreshResponsesCache() {
+  responses = await loadResponses();
 }
 
 async function saveCombinedStep(values) {
@@ -1519,7 +1525,8 @@ async function saveCombinedStep(values) {
         body: JSON.stringify(payload),
       });
       if (!rows[0]) {
-        throw new Error("Supabase update did not return a row");
+        responses = responses.filter((item) => item.id !== existingResponse.id);
+        return await insertCombinedResponse(studentName, values);
       }
       const updatedResponse = fromSupabaseRow(rows[0]);
       responses = responses.map((item) => (item.id === updatedResponse.id ? updatedResponse : item));
@@ -1529,6 +1536,41 @@ async function saveCombinedStep(values) {
     }
   }
 
+  return await insertCombinedResponse(studentName, values);
+}
+
+async function saveStudentStep(step, values) {
+  if (!isSupabaseReady()) {
+    throw new Error("Supabase is not configured");
+  }
+
+  const studentName = getStudentName();
+  const existingResponse = getResponseByStudentName(studentName);
+  const payload = { [step]: values };
+
+  if (existingResponse) {
+    try {
+      const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(existingResponse.id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(payload),
+      });
+      if (!rows[0]) {
+        responses = responses.filter((item) => item.id !== existingResponse.id);
+        return await insertStepResponse(studentName, step, values);
+      }
+      const updatedResponse = fromSupabaseRow(rows[0]);
+      responses = responses.map((item) => (item.id === updatedResponse.id ? updatedResponse : item));
+      return updatedResponse;
+    } catch {
+      return await replaceResponseByInsert(existingResponse, payload);
+    }
+  }
+
+  return await insertStepResponse(studentName, step, values);
+}
+
+async function insertCombinedResponse(studentName, values) {
   const response = {
     id: createId(),
     name: studentName,
@@ -1551,33 +1593,7 @@ async function saveCombinedStep(values) {
   return createdResponse;
 }
 
-async function saveStudentStep(step, values) {
-  if (!isSupabaseReady()) {
-    throw new Error("Supabase is not configured");
-  }
-
-  const studentName = getStudentName();
-  const existingResponse = getResponseByStudentName(studentName);
-  const payload = { [step]: values };
-
-  if (existingResponse) {
-    try {
-      const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(existingResponse.id)}`, {
-        method: "PATCH",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify(payload),
-      });
-      if (!rows[0]) {
-        throw new Error("Supabase update did not return a row");
-      }
-      const updatedResponse = fromSupabaseRow(rows[0]);
-      responses = responses.map((item) => (item.id === updatedResponse.id ? updatedResponse : item));
-      return updatedResponse;
-    } catch {
-      return await replaceResponseByInsert(existingResponse, payload);
-    }
-  }
-
+async function insertStepResponse(studentName, step, values) {
   const response = {
     id: createId(),
     name: studentName,
@@ -1809,30 +1825,199 @@ function renderTeacherDashboardActions() {
   const actions = document.createElement("div");
   actions.className = "teacher-dashboard-actions";
   actions.innerHTML = `
-    <button class="danger-button teacher-clear-all-button" type="button" ${teacherClearAllUnlocked ? "" : "hidden"} ${responses.length === 0 ? "disabled" : ""}>
-      결과 전부 삭제
+    <button class="danger-button teacher-export-clear-button" type="button" ${teacherClearAllUnlocked ? "" : "hidden"} ${responses.length === 0 ? "disabled" : ""}>
+      결과 내보내기
     </button>
   `;
 
-  actions.querySelector(".teacher-clear-all-button")?.addEventListener("click", async (event) => {
+  actions.querySelector(".teacher-export-clear-button")?.addEventListener("click", async (event) => {
     if (responses.length === 0) return;
-    const confirmed = window.confirm("모든 학생 결과를 삭제할까요?");
+    const modeLabel = activeClassMode === "combined" ? "한 번에 작성" : "순차 진행";
+    const confirmed = window.confirm(`${modeLabel} 결과만 HTML 파일로 저장한 뒤 모든 학생 결과를 삭제할까요?`);
     if (!confirmed) return;
 
     const button = event.currentTarget;
     button.disabled = true;
 
     try {
+      exportResponsesAsHtml();
       await clearResponses();
       renderResponses();
-      showToast("결과를 전부 삭제했습니다.");
+      showToast("결과를 저장하고 전부 삭제했습니다.");
     } catch {
       button.disabled = false;
-      showToast("결과를 삭제하지 못했습니다.");
+      showToast("결과를 내보내거나 삭제하지 못했습니다.");
     }
   });
 
   return actions;
+}
+
+function exportResponsesAsHtml() {
+  const exportedAt = new Date();
+  const mode = activeClassMode === "combined" ? "combined" : "sequential";
+  const fileName = `see-think-wonder-${mode}-results-${formatFileDate(exportedAt)}.html`;
+  const html = buildResponsesExportHtml(exportedAt, mode);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildResponsesExportHtml(exportedAt, mode) {
+  const submittedResponses = getSubmittedStudentResponses();
+  const sequentialResponses = submittedResponses.filter(hasSequentialAnswers);
+  const combinedResponses = submittedResponses.filter((response) => normalizeCombinedList(response.combined).length > 0);
+  const isCombinedExport = mode === "combined";
+  const stepCounts = {
+    see: countStepAnswers("see", submittedResponses),
+    think: countStepAnswers("think", submittedResponses),
+    wonder: countStepAnswers("wonder", submittedResponses),
+    combined: submittedResponses.reduce((sum, response) => sum + normalizeCombinedList(response.combined).length, 0),
+  };
+  const exportTitle = isCombinedExport ? "한 번에 작성 결과" : "순차 진행 결과";
+  const exportSummary = isCombinedExport
+    ? `<span>제출 학생 ${combinedResponses.length}명</span><span>한 번에 작성 ${stepCounts.combined}개</span>`
+    : `<span>제출 학생 ${sequentialResponses.length}명</span><span>보기 ${stepCounts.see}개</span><span>생각하기 ${stepCounts.think}개</span><span>궁금해하기 ${stepCounts.wonder}개</span>`;
+  const exportBody = isCombinedExport
+    ? renderCombinedExportBody(combinedResponses)
+    : renderSequentialExportBody(sequentialResponses);
+
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>사고루틴 결과</title>
+  <style>
+    body { margin: 0; padding: 32px; color: #111; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.55; }
+    h1 { margin: 0 0 8px; font-size: 32px; }
+    h2 { margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 2px solid #111; font-size: 24px; }
+    h3 { margin: 18px 0 8px; font-size: 18px; }
+    .meta, .summary { color: #444; }
+    .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 24px; }
+    .summary span { padding: 6px 10px; border: 1px solid #ccc; border-radius: 999px; }
+    .class-image { width: min(720px, 100%); margin: 24px 0; padding: 12px; border: 2px solid #111; border-radius: 12px; }
+    .class-image img { display: block; width: 100%; border-radius: 8px; object-fit: contain; }
+    .export-section { margin-top: 36px; }
+    .student { break-inside: avoid; margin: 22px 0; padding: 18px; border: 2px solid #111; border-radius: 12px; }
+    .student-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; margin-bottom: 10px; }
+    .student-name { font-size: 22px; font-weight: 800; }
+    .submitted-at { color: #555; font-size: 14px; }
+    ol { margin: 0 0 10px 24px; padding: 0; }
+    li { margin: 5px 0; }
+    .combined-item { margin: 8px 0; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; }
+    .empty { color: #777; }
+    @media print { body { padding: 18mm; } .student { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <h1>사고루틴 ${exportTitle}</h1>
+  <div class="meta">내보낸 시간: ${escapeHtml(formatReadableDate(exportedAt))}</div>
+  <div class="summary">
+    ${exportSummary}
+  </div>
+  ${classImageDataUrl ? `<figure class="class-image"><img src="${escapeAttribute(classImageDataUrl)}" alt="수업 사진"></figure>` : ""}
+  ${exportBody}
+</body>
+</html>`;
+}
+
+function renderSequentialExportBody(responsesForExport) {
+  return `
+  <section class="export-section">
+    <h2>순차 진행</h2>
+    ${responsesForExport.length === 0 ? `<p class="empty">저장할 순차 진행 결과가 없습니다.</p>` : responsesForExport.map((response, index) => renderSequentialExportSection(response, index)).join("")}
+  </section>`;
+}
+
+function renderCombinedExportBody(responsesForExport) {
+  return `
+  <section class="export-section">
+    <h2>한 번에 작성</h2>
+    ${responsesForExport.length === 0 ? `<p class="empty">저장할 한 번에 작성 결과가 없습니다.</p>` : responsesForExport.map((response, index) => renderCombinedResponseExportSection(response, index)).join("")}
+  </section>`;
+}
+
+function renderSequentialExportSection(response, index) {
+  const seeItems = normalizeList(response.see).filter(Boolean);
+  const thinkItems = normalizeList(response.think).filter(Boolean);
+  const wonderItems = normalizeList(response.wonder).filter(Boolean);
+
+  return `
+  <section class="student">
+    <div class="student-head">
+      <span class="student-name">${index + 1}. ${escapeHtml(response.name)}</span>
+      <span class="submitted-at">제출: ${escapeHtml(formatReadableDate(response.createdAt))}</span>
+    </div>
+    ${renderExportList("보기", seeItems)}
+    ${renderExportList("생각하기", thinkItems)}
+    ${renderExportList("궁금해하기", wonderItems)}
+  </section>`;
+}
+
+function renderCombinedResponseExportSection(response, index) {
+  return `
+  <section class="student">
+    <div class="student-head">
+      <span class="student-name">${index + 1}. ${escapeHtml(response.name)}</span>
+      <span class="submitted-at">제출: ${escapeHtml(formatReadableDate(response.createdAt))}</span>
+    </div>
+    ${renderCombinedExportList(normalizeCombinedList(response.combined))}
+  </section>`;
+}
+
+function renderExportList(label, values) {
+  if (values.length === 0) {
+    return `<h3>${label}</h3><p class="empty">미제출</p>`;
+  }
+
+  return `<h3>${label}</h3><ol>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ol>`;
+}
+
+function renderCombinedExportList(values) {
+  if (values.length === 0) {
+    return `<h3>한 번에 작성</h3><p class="empty">미제출</p>`;
+  }
+
+  return `<h3>한 번에 작성</h3>${values.map((value) => `
+    <div class="combined-item">
+      <div><strong>보기:</strong> ${escapeHtml(value.see)}</div>
+      <div><strong>생각하기:</strong> ${escapeHtml(value.think)}</div>
+      <div><strong>궁금해하기:</strong> ${escapeHtml(value.wonder)}</div>
+    </div>
+  `).join("")}`;
+}
+
+function countStepAnswers(step, submittedResponses = getSubmittedStudentResponses()) {
+  return submittedResponses.reduce((sum, response) => sum + normalizeList(response[step]).filter(Boolean).length, 0);
+}
+
+function hasSequentialAnswers(response) {
+  return ["see", "think", "wonder"].some((step) => normalizeList(response[step]).filter(Boolean).length > 0);
+}
+
+function formatFileDate(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function formatReadableDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function renderTeacherDashboardBody() {
