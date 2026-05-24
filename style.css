@@ -2510,6 +2510,8 @@ button {
 
 #studentView.is-summary-step {
   gap: 8px;
+  min-height: calc(100vh - 56px);
+  align-content: center;
 }
 
 #studentView.is-summary-step .student-step {
