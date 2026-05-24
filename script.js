@@ -6,6 +6,7 @@ const activeStepSettingId = "active_step";
 const activeModeSettingId = "active_mode";
 const classImageSettingId = "class_image";
 const summaryTextSettingId = "summary_text";
+const summaryHeadlineMarker = "__headline__";
 const presentationLockSettingId = "presentation_lock";
 const responseClearCutoffSettingId = "response_clear_cutoff";
 const savedStudentNumberKey = "stw_student_number";
@@ -45,7 +46,6 @@ const elements = {
   teacherStwStartButton: document.querySelector("#teacherStwStartButton"),
   teacherSummaryStartButton: document.querySelector("#teacherSummaryStartButton"),
   summaryTextInput: document.querySelector("#summaryTextInput"),
-  summaryTextRegisterButton: document.querySelector("#summaryTextRegisterButton"),
   summaryTextStatus: document.querySelector("#summaryTextStatus"),
   summaryStartButton: document.querySelector("#summaryStartButton"),
   teacherModeChoiceButtons: document.querySelectorAll("[data-open-teacher-mode]"),
@@ -102,6 +102,8 @@ let teacherToolsClickCount = 0;
 let teacherToolsUnlocked = false;
 let teacherClearAllClickCount = 0;
 let teacherClearAllUnlocked = false;
+let summaryTextSaveTimer = null;
+let summaryTextSaveSequence = 0;
 
 initStudentButtons();
 initResponses();
@@ -186,16 +188,13 @@ elements.classImageCancelButton?.addEventListener("click", () => {
 
 elements.summaryTextInput?.addEventListener("input", () => {
   renderSummaryTextStatus();
+  scheduleSummaryTextRegistration();
 });
 
 elements.summaryTextInput?.addEventListener("paste", (event) => {
   event.preventDefault();
   const text = event.clipboardData?.getData("text/plain") || "";
   insertPlainText(text);
-});
-
-elements.summaryTextRegisterButton?.addEventListener("click", () => {
-  registerSummaryText();
 });
 
 elements.summaryStartButton?.addEventListener("click", () => {
@@ -553,6 +552,7 @@ function showStudentStep(step) {
   let activeSection = null;
   const previousStudentStep = currentStudentStep;
   currentStudentStep = step;
+  elements.studentView.dataset.currentStep = step;
 
   document.querySelectorAll(".student-step").forEach((section) => {
     const isActive = section.dataset.step === step;
@@ -1347,23 +1347,46 @@ async function cancelClassImageUpload() {
   }
 }
 
+function scheduleSummaryTextRegistration() {
+  if (summaryTextSaveTimer) {
+    clearTimeout(summaryTextSaveTimer);
+  }
+  renderSummaryTextStatus({ pending: true });
+  summaryTextSaveTimer = window.setTimeout(() => {
+    summaryTextSaveTimer = null;
+    registerSummaryText({ silent: true, allowEmpty: true });
+  }, 600);
+}
+
 async function registerSummaryText(options = {}) {
+  if (summaryTextSaveTimer) {
+    clearTimeout(summaryTextSaveTimer);
+    summaryTextSaveTimer = null;
+  }
+
   const nextText = getSummaryEditorText();
-  if (!nextText) {
+  if (!nextText && !options.allowEmpty) {
     showToast("수업에서 사용할 글을 넣어 주세요.");
     elements.summaryTextInput?.focus();
     return false;
   }
 
+  const saveSequence = ++summaryTextSaveSequence;
+
   try {
+    renderSummaryTextStatus({ saving: true });
+    await saveSummaryTextSetting(nextText);
+    if (saveSequence !== summaryTextSaveSequence) {
+      return true;
+    }
     summaryText = nextText;
-    await saveSummaryTextSetting(summaryText);
     renderSummaryTextStatus();
     if (!options.silent) {
       showToast("글을 등록했습니다.");
     }
     return true;
   } catch {
+    renderSummaryTextStatus({ failed: true });
     showToast("글을 등록하지 못했습니다.");
     return false;
   }
@@ -1413,11 +1436,23 @@ function renderSummaryText() {
   renderSummaryTextStatus();
 }
 
-function renderSummaryTextStatus() {
+function renderSummaryTextStatus(state = {}) {
   if (!elements.summaryTextStatus) return;
   const inputText = getSummaryEditorText();
   if (!inputText) {
     elements.summaryTextStatus.textContent = "글을 입력해 주세요.";
+    return;
+  }
+  if (state.saving) {
+    elements.summaryTextStatus.textContent = "자동 등록 중...";
+    return;
+  }
+  if (state.pending) {
+    elements.summaryTextStatus.textContent = "자동 등록 대기 중...";
+    return;
+  }
+  if (state.failed) {
+    elements.summaryTextStatus.textContent = "자동 등록 실패";
     return;
   }
   elements.summaryTextStatus.textContent = inputText === summaryText ? "등록 완료" : "등록해 주세요.";
@@ -1441,6 +1476,7 @@ function insertPlainText(text) {
   selection.collapseToEnd();
   setSummaryEditorText(getSummaryEditorText());
   renderSummaryTextStatus();
+  scheduleSummaryTextRegistration();
 }
 
 function normalizeEditableText(value) {
@@ -1517,17 +1553,38 @@ async function refreshSummaryResponses() {
     return summaryResponses;
   }
 
-  const rows = await supabaseRequest(`/${supabaseSettingsTable}?select=id,value,updated_at`);
-  summaryResponses = rows
-    .filter((row) => /^summary_response_\d+$/.test(row.id || ""))
-    .reduce((items, row) => {
-      const number = Number(row.id.replace("summary_response_", ""));
-      if (number >= 1 && number <= studentCount && row.value) {
-        items[`${number}번`] = row.value;
-      }
-      return items;
-    }, {});
+  try {
+    const rows = await supabaseRequest(`/${supabaseSettingsTable}?select=id,value,updated_at`);
+    summaryResponses = rows
+      .filter((row) => /^summary_response_\d+$/.test(row.id || ""))
+      .reduce((items, row) => {
+        const number = Number(row.id.replace("summary_response_", ""));
+        if (number >= 1 && number <= studentCount && row.value) {
+          items[`${number}번`] = row.value;
+        }
+        return items;
+      }, {});
+  } catch {
+    summaryResponses = { ...summaryResponses };
+  }
+
+  summaryResponses = responses.reduce((items, response) => {
+    if (response.summaryHeadline && !items[response.name]) {
+      items[response.name] = response.summaryHeadline;
+    }
+    return items;
+  }, { ...summaryResponses });
+
   return summaryResponses;
+}
+
+function getFallbackSummaryResponses() {
+  return responses.reduce((items, response) => {
+    if (response.summaryHeadline) {
+      items[response.name] = response.summaryHeadline;
+    }
+    return items;
+  }, {});
 }
 
 async function saveSummaryHeadline(studentName, value) {
@@ -1536,11 +1593,59 @@ async function saveSummaryHeadline(studentName, value) {
     throw new Error("Supabase is not configured");
   }
 
-  await saveSettingsValue(settingId, value);
+  try {
+    await saveSettingsValue(settingId, value);
+  } catch {
+    await saveSummaryHeadlineInResponses(studentName, value);
+  }
+
   summaryResponses = {
     ...summaryResponses,
     [studentName]: value,
   };
+}
+
+async function saveSummaryHeadlineInResponses(studentName, value) {
+  await refreshResponsesCache();
+  const existingResponse = getResponseByStudentName(studentName);
+  const payload = {
+    combined: [{ type: summaryHeadlineMarker, headline: value }],
+  };
+
+  if (existingResponse) {
+    const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(existingResponse.id)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify(payload),
+    });
+    if (!rows[0]) {
+      throw new Error("Supabase update did not return a row");
+    }
+    const updatedResponse = fromSupabaseRow(rows[0]);
+    responses = responses.map((item) => (item.id === updatedResponse.id ? updatedResponse : item));
+    return updatedResponse;
+  }
+
+  const response = {
+    id: createId(),
+    name: studentName,
+    see: [],
+    think: [],
+    wonder: [],
+    combined: payload.combined,
+    createdAt: new Date().toISOString(),
+  };
+  const rows = await supabaseRequest(`/${supabaseTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify(toSupabaseRow(response)),
+  });
+  if (!rows[0]) {
+    throw new Error("Supabase insert did not return a row");
+  }
+  const createdResponse = fromSupabaseRow(rows[0]);
+  responses = [...responses, createdResponse];
+  return createdResponse;
 }
 
 async function deleteSummaryHeadline(studentName) {
@@ -1549,14 +1654,18 @@ async function deleteSummaryHeadline(studentName) {
     throw new Error("Supabase is not configured");
   }
 
-  await saveSettingsValue(settingId, "");
+  try {
+    await saveSettingsValue(settingId, "");
+  } catch {
+    await saveSummaryHeadlineInResponses(studentName, "");
+  }
   const nextResponses = { ...summaryResponses };
   delete nextResponses[studentName];
   summaryResponses = nextResponses;
 }
 
 function getSummaryHeadline(studentName) {
-  return summaryResponses[studentName] || "";
+  return summaryResponses[studentName] || getFallbackSummaryResponses()[studentName] || "";
 }
 
 function getSummaryResponseSettingId(studentName) {
@@ -2211,6 +2320,7 @@ function fromSupabaseRow(row) {
     think: normalizeList(row.think),
     wonder: normalizeList(row.wonder),
     combined: normalizeCombinedList(row.combined),
+    summaryHeadline: extractSummaryHeadline(row.combined),
     createdAt: row.created_at,
   };
 }
@@ -3187,6 +3297,12 @@ function normalizeCombinedList(value) {
       wonder: String(item?.wonder || "").trim(),
     }))
     .filter(isCompleteCombinedItem);
+}
+
+function extractSummaryHeadline(value) {
+  if (!Array.isArray(value)) return "";
+  const item = value.find((entry) => entry?.type === summaryHeadlineMarker);
+  return String(item?.headline || "").trim();
 }
 
 function escapeHtml(value) {

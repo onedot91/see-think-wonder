@@ -312,7 +312,7 @@ textarea::placeholder {
 }
 
 .teacher-text-upload-panel {
-  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
   align-items: stretch;
   min-height: 360px;
   padding: 24px;
@@ -2418,6 +2418,10 @@ button {
   min-width: 0;
   font-size: clamp(2.1rem, 3.3vw, 3rem);
   line-height: 1.12;
+}
+
+#studentView[data-current-step="summary"] .view-head {
+  display: none;
 }
 
 .step-title-icon {
