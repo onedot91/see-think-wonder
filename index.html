@@ -39,13 +39,12 @@
         <section class="teacher-upload-panel teacher-text-upload-panel">
           <div>
             <h2>수업 글</h2>
-            <p id="summaryTextStatus">글을 업로드해 주세요.</p>
+            <p id="summaryTextStatus">글을 입력해 주세요.</p>
           </div>
           <textarea class="teacher-summary-text-input" id="summaryTextInput" placeholder="수업에서 사용할 글을 넣어 주세요."></textarea>
           <div class="teacher-upload-actions">
-            <label class="secondary-button upload-button" for="summaryTextFileInput">업로드</label>
+            <button class="secondary-button upload-button" id="summaryTextRegisterButton" type="button">등록</button>
           </div>
-          <input id="summaryTextFileInput" type="file" accept=".txt,text/plain" hidden />
         </section>
         <button class="teacher-start-choice is-summary" id="summaryStartButton" type="button">
           <span>시작</span>

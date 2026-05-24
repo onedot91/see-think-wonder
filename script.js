@@ -45,7 +45,7 @@ const elements = {
   teacherStwStartButton: document.querySelector("#teacherStwStartButton"),
   teacherSummaryStartButton: document.querySelector("#teacherSummaryStartButton"),
   summaryTextInput: document.querySelector("#summaryTextInput"),
-  summaryTextFileInput: document.querySelector("#summaryTextFileInput"),
+  summaryTextRegisterButton: document.querySelector("#summaryTextRegisterButton"),
   summaryTextStatus: document.querySelector("#summaryTextStatus"),
   summaryStartButton: document.querySelector("#summaryStartButton"),
   teacherModeChoiceButtons: document.querySelectorAll("[data-open-teacher-mode]"),
@@ -183,13 +183,12 @@ elements.classImageCancelButton?.addEventListener("click", () => {
   cancelClassImageUpload();
 });
 
-elements.summaryTextFileInput?.addEventListener("change", () => {
-  uploadSummaryText(elements.summaryTextFileInput.files?.[0]);
+elements.summaryTextInput?.addEventListener("input", () => {
+  renderSummaryTextStatus();
 });
 
-elements.summaryTextInput?.addEventListener("input", () => {
-  summaryText = elements.summaryTextInput.value;
-  renderSummaryTextStatus();
+elements.summaryTextRegisterButton?.addEventListener("click", () => {
+  registerSummaryText();
 });
 
 elements.summaryStartButton?.addEventListener("click", () => {
@@ -796,7 +795,7 @@ function renderSummaryRows(value = "") {
       <textarea class="summary-item summary-headline-input" rows="1" maxlength="120" placeholder="글의 헤드라인을 써 주세요." autocomplete="off">${escapeHtml(value)}</textarea>
     </label>
     <article class="summary-reading-card">
-      ${summaryText ? escapeHtml(summaryText) : "아직 업로드된 글이 없습니다."}
+      ${summaryText ? escapeHtml(summaryText) : "아직 등록된 글이 없습니다."}
     </article>
   `;
   elements.summaryList.append(row);
@@ -1338,35 +1337,35 @@ async function cancelClassImageUpload() {
   }
 }
 
-async function uploadSummaryText(file) {
-  if (!file) return;
-
-  try {
-    const text = await readTextFile(file);
-    summaryText = text.trim();
-    if (elements.summaryTextInput) {
-      elements.summaryTextInput.value = summaryText;
-    }
-    renderSummaryTextStatus();
-    showToast("글을 업로드했습니다.");
-  } catch (error) {
-    showToast(error.message || "글을 업로드하지 못했습니다.");
-  } finally {
-    elements.summaryTextFileInput.value = "";
-  }
-}
-
-async function startSummaryClass() {
+async function registerSummaryText(options = {}) {
   const nextText = elements.summaryTextInput?.value.trim() || "";
   if (!nextText) {
     showToast("수업에서 사용할 글을 넣어 주세요.");
     elements.summaryTextInput?.focus();
-    return;
+    return false;
   }
 
   try {
     summaryText = nextText;
     await saveSummaryTextSetting(summaryText);
+    renderSummaryTextStatus();
+    if (!options.silent) {
+      showToast("글을 등록했습니다.");
+    }
+    return true;
+  } catch {
+    showToast("글을 등록하지 못했습니다.");
+    return false;
+  }
+}
+
+async function startSummaryClass() {
+  const registered = await registerSummaryText({ silent: true });
+  if (!registered) {
+    return;
+  }
+
+  try {
     await saveActiveClassMode("summary");
     await refreshResponses();
     await showTeacherView("summary");
@@ -1396,7 +1395,7 @@ function renderSummaryText() {
   if (currentStudentStep === "summary") {
     const readingCard = elements.summaryList.querySelector(".summary-reading-card");
     if (readingCard) {
-      readingCard.textContent = summaryText || "아직 업로드된 글이 없습니다.";
+      readingCard.textContent = summaryText || "아직 등록된 글이 없습니다.";
     } else {
       renderSummaryRows();
     }
@@ -1406,9 +1405,12 @@ function renderSummaryText() {
 
 function renderSummaryTextStatus() {
   if (!elements.summaryTextStatus) return;
-  elements.summaryTextStatus.textContent = (elements.summaryTextInput?.value.trim() || summaryText)
-    ? "업로드 완료"
-    : "글을 업로드해 주세요.";
+  const inputText = elements.summaryTextInput?.value.trim() || "";
+  if (!inputText) {
+    elements.summaryTextStatus.textContent = "글을 입력해 주세요.";
+    return;
+  }
+  elements.summaryTextStatus.textContent = inputText === summaryText ? "등록 완료" : "등록해 주세요.";
 }
 
 async function loadSummaryTextSetting() {
@@ -1450,19 +1452,6 @@ async function saveSummaryTextSetting(value) {
     method: "POST",
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify(payload),
-  });
-}
-
-function readTextFile(file) {
-  if (file.type && !file.type.startsWith("text/")) {
-    throw new Error("텍스트 파일만 업로드할 수 있습니다.");
-  }
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
-    reader.addEventListener("error", () => reject(new Error("글을 읽지 못했습니다.")), { once: true });
-    reader.readAsText(file, "utf-8");
   });
 }
 
@@ -2135,7 +2124,7 @@ function renderSummaryTextPanel() {
   panel.className = "teacher-dashboard-panel summary-text-panel";
   panel.innerHTML = `
     <h2>수업 글</h2>
-    <div class="summary-reading-text">${summaryText ? escapeHtml(summaryText) : "업로드된 글이 없습니다."}</div>
+    <div class="summary-reading-text">${summaryText ? escapeHtml(summaryText) : "등록된 글이 없습니다."}</div>
   `;
   return panel;
 }
