@@ -1541,6 +1541,10 @@ button {
   background: #ffffff;
 }
 
+.summary-collected-panel {
+  min-height: 220px;
+}
+
 .teacher-panel-head {
   display: flex;
   justify-content: space-between;
@@ -2421,7 +2425,11 @@ button {
 }
 
 #studentView[data-current-step="summary"] .view-head {
-  display: none;
+  display: none !important;
+}
+
+#studentView.is-summary-step .view-head {
+  display: none !important;
 }
 
 .step-title-icon {

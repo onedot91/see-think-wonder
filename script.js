@@ -553,6 +553,7 @@ function showStudentStep(step) {
   const previousStudentStep = currentStudentStep;
   currentStudentStep = step;
   elements.studentView.dataset.currentStep = step;
+  elements.studentView.classList.toggle("is-summary-step", step === "summary");
 
   document.querySelectorAll(".student-step").forEach((section) => {
     const isActive = section.dataset.step === step;
@@ -2358,7 +2359,7 @@ function renderTeacherDashboard() {
 function renderSummaryDashboard() {
   const dashboard = document.createElement("section");
   dashboard.className = "teacher-dashboard is-summary";
-  dashboard.append(renderSummaryTextPanel(), renderSummaryResultPanel());
+  dashboard.append(renderSummaryTextPanel(), renderSummaryDashboardBody());
   return dashboard;
 }
 
@@ -2372,9 +2373,16 @@ function renderSummaryTextPanel() {
   return panel;
 }
 
+function renderSummaryDashboardBody() {
+  const body = document.createElement("div");
+  body.className = "teacher-dashboard-body summary-dashboard-body";
+  body.append(renderSummaryResultPanel(), renderSummaryCollectedPanel());
+  return body;
+}
+
 function renderSummaryResultPanel() {
   const panel = document.createElement("section");
-  panel.className = "teacher-dashboard-panel summary-result-panel";
+  panel.className = "teacher-dashboard-panel teacher-status-panel summary-result-panel";
   panel.innerHTML = `
     <h2>번호별 결과</h2>
     <div class="teacher-student-grid summary-student-grid">
@@ -2391,6 +2399,30 @@ function renderSummaryResultPanel() {
   panel.querySelectorAll("[data-summary-student]:not(:disabled)").forEach((button) => {
     button.addEventListener("click", () => {
       openTeacherSummaryStudentModal(`${button.dataset.summaryStudent}번`);
+    });
+  });
+  return panel;
+}
+
+function renderSummaryCollectedPanel() {
+  const panel = document.createElement("section");
+  panel.className = "teacher-dashboard-panel teacher-collected-panel summary-collected-panel";
+  panel.innerHTML = renderSummaryAnswers();
+  panel.querySelectorAll("[data-student-name]").forEach((card) => {
+    const openStudentResponse = () => {
+      const studentName = card.dataset.studentName;
+      if (!studentName) return;
+      openTeacherSummaryStudentModal(studentName);
+    };
+
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      openStudentResponse();
+    });
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openStudentResponse();
     });
   });
   return panel;
