@@ -13,7 +13,8 @@ const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
 const studentCount = 23;
 const answerAccentCount = 3;
 const classImageAspectRatio = 4 / 3;
-const classImageMaxWidth = 1200;
+const classImageMaxWidth = 1600;
+const classImageJpegQuality = 0.9;
 const classModes = {
   sequential: "순차 진행",
   combined: "한 번에 작성",
@@ -402,6 +403,7 @@ async function showTeacherView(selectedMode = null) {
     await refreshActiveClassMode({ renderStudent: false });
   }
   await refreshActiveClassStep({ renderStudent: false });
+  await refreshClassImage();
   activeTeacherStep = activeClassStep;
   await refreshResponses();
   startTeacherPolling();
@@ -1001,6 +1003,7 @@ function startTeacherPolling() {
   teacherPollId = window.setInterval(async () => {
     await refreshActiveClassMode({ renderStudent: false });
     await refreshActiveClassStep({ renderStudent: false });
+    await refreshClassImage();
     refreshResponses();
   }, 2000);
 }
@@ -1260,6 +1263,17 @@ function renderClassImage() {
       elements.studentClassImage.removeAttribute("src");
     }
   }
+
+  const teacherClassImageCard = document.querySelector("#teacherDashboardClassImageCard");
+  const teacherClassImage = document.querySelector("#teacherDashboardClassImage");
+  if (teacherClassImageCard && teacherClassImage) {
+    teacherClassImageCard.hidden = !hasImage;
+    if (hasImage) {
+      teacherClassImage.src = classImageDataUrl;
+    } else {
+      teacherClassImage.removeAttribute("src");
+    }
+  }
 }
 
 async function loadClassImageSetting() {
@@ -1323,7 +1337,7 @@ async function prepareClassImage(file) {
   const context = canvas.getContext("2d");
   context.drawImage(image, 0, 0, width, height);
 
-  return canvas.toDataURL("image/jpeg", 0.82);
+  return canvas.toDataURL("image/jpeg", classImageJpegQuality);
 }
 
 function loadImageFromFile(file) {
@@ -1728,8 +1742,37 @@ function renderTeacherDashboard() {
   const dashboard = document.createElement("section");
   dashboard.className = `teacher-dashboard is-${activeClassMode === "combined" ? "combined" : activeTeacherStep}`;
   dashboard.append(renderTeacherDashboardActions());
+  dashboard.append(renderTeacherClassImagePanel());
   dashboard.append(renderTeacherDashboardBody());
   return dashboard;
+}
+
+function renderTeacherClassImagePanel() {
+  const panel = document.createElement("figure");
+  panel.className = "teacher-dashboard-image-card";
+  panel.id = "teacherDashboardClassImageCard";
+  panel.tabIndex = 0;
+  panel.setAttribute("role", "button");
+  panel.setAttribute("aria-label", "수업 사진 크게 보기");
+  panel.hidden = !classImageDataUrl;
+  panel.innerHTML = `<img id="teacherDashboardClassImage" alt="수업 사진" />`;
+
+  const image = panel.querySelector("img");
+  if (image && classImageDataUrl) {
+    image.src = classImageDataUrl;
+  }
+
+  panel.addEventListener("click", () => {
+    openClassImageLightbox();
+  });
+  panel.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openClassImageLightbox();
+    }
+  });
+
+  return panel;
 }
 
 function renderTeacherDashboardActions() {
