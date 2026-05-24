@@ -314,27 +314,27 @@ textarea::placeholder {
 .teacher-text-upload-panel {
   grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
   align-items: stretch;
-  min-height: 360px;
+  min-height: 520px;
   padding: 24px;
 }
 
 .teacher-summary-text-input {
   width: 100%;
-  height: 360px;
-  min-height: 360px;
-  max-height: 52vh;
+  height: 520px;
+  min-height: 520px;
+  max-height: 66vh;
   resize: none;
   overflow: auto;
   scrollbar-gutter: stable;
-  padding: 34px 40px;
+  padding: 42px 48px;
   border: 2px solid #000000;
   border-radius: 18px;
   background: #ffffff;
   color: #000000;
   font-family: "Noto Serif KR", "Nanum Myeongjo", "Batang", "Times New Roman", serif;
-  font-size: clamp(1.2rem, 1.9vw, 1.72rem);
-  font-weight: 750;
-  line-height: 1.82;
+  font-size: clamp(1.35rem, 2.15vw, 2rem);
+  font-weight: 800;
+  line-height: 1.86;
   word-break: keep-all;
   overflow-wrap: break-word;
 }
@@ -348,9 +348,9 @@ textarea::placeholder {
 .teacher-summary-text-input p,
 .teacher-summary-text-input div {
   max-width: 31em;
-  margin: 0 auto 1.35em;
+  margin: 0 auto 1.45em;
   text-indent: 1em;
-  line-height: 1.82;
+  line-height: 1.86;
 }
 
 .teacher-summary-text-input .summary-reading-paragraph:last-child,
@@ -800,7 +800,7 @@ textarea {
   display: block;
   width: 100%;
   min-height: 112px;
-  padding: 24px 270px 24px 28px;
+  padding: 24px 210px 24px 28px;
   border: 2px solid #000000;
   border-bottom-width: 0;
   border-radius: 18px 18px 0 0;
@@ -820,8 +820,8 @@ textarea {
 }
 
 .summary-reading-card {
-  min-height: 520px;
-  max-height: 64vh;
+  min-height: 600px;
+  max-height: 72vh;
   overflow: auto;
   white-space: pre-wrap;
   padding: 42px 48px;
@@ -837,12 +837,37 @@ textarea {
   overflow-wrap: break-word;
 }
 
+.summary-reading-card.is-typing .summary-reading-paragraph:last-child::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.12em;
+  border-right: 3px solid rgba(0, 0, 0, 0.72);
+  transform: translateY(0.12em);
+  animation: typing-caret 900ms steps(1, end) infinite;
+}
+
+@keyframes typing-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
 .summary-submit-button {
   position: absolute;
   right: 28px;
   bottom: 20px;
-  min-width: 220px;
-  min-height: 72px;
+  min-width: 150px;
+  min-height: 58px;
+  padding: 10px 24px;
+  font-size: 1.45rem;
 }
 
 .summary-reading-paragraph {
@@ -2481,6 +2506,14 @@ button {
 
 #studentView {
   gap: 14px;
+}
+
+#studentView.is-summary-step {
+  gap: 8px;
+}
+
+#studentView.is-summary-step .student-step {
+  padding-bottom: 28px;
 }
 
 #studentView .view-head {

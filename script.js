@@ -104,6 +104,9 @@ let teacherClearAllClickCount = 0;
 let teacherClearAllUnlocked = false;
 let summaryTextSaveTimer = null;
 let summaryTextSaveSequence = 0;
+let summaryTypingTimer = null;
+let summaryTypingSource = "";
+let summaryTypingCompletedSource = "";
 
 initStudentButtons();
 initResponses();
@@ -338,7 +341,6 @@ async function submitSummaryStep() {
     return;
   }
 
-  clearSummaryInput();
   await refreshSummaryResponses();
   renderResponses();
   showToast(`${getStudentName()} 헤드라인 제출 완료`);
@@ -811,11 +813,10 @@ function renderSummaryRows(value = "") {
       <textarea class="summary-item summary-headline-input" rows="1" maxlength="120" placeholder="글의 헤드라인을 써 주세요." autocomplete="off">${escapeHtml(value)}</textarea>
       <button class="primary-button summary-submit-button" type="button" data-summary-submit>제출</button>
     </label>
-    <article class="summary-reading-card">
-      ${renderSummaryReadingText(summaryText)}
-    </article>
+    <article class="summary-reading-card"></article>
   `;
   elements.summaryList.append(row);
+  startSummaryTypingAnimation(row.querySelector(".summary-reading-card"), summaryText);
   row.querySelector("[data-summary-submit]")?.addEventListener("click", () => {
     submitCurrentStudentStep();
   });
@@ -1441,7 +1442,7 @@ function renderSummaryText() {
   if (currentStudentStep === "summary") {
     const readingCard = elements.summaryList.querySelector(".summary-reading-card");
     if (readingCard) {
-      readingCard.innerHTML = renderSummaryReadingText(summaryText);
+      startSummaryTypingAnimation(readingCard, summaryText);
     } else {
       renderSummaryRows();
     }
@@ -1502,13 +1503,97 @@ function normalizeEditableText(value) {
     .trim();
 }
 
-function renderSummaryReadingText(value, options = {}) {
-  const { emptyText = "등록된 글이 없습니다." } = options;
-  const paragraphs = String(value || "")
+function startSummaryTypingAnimation(container, value) {
+  if (!container) return;
+  const source = String(value || "").trim();
+
+  if (!source) {
+    stopSummaryTypingAnimation();
+    summaryTypingSource = "";
+    summaryTypingCompletedSource = "";
+    container.classList.remove("is-typing");
+    container.innerHTML = renderSummaryReadingText("");
+    return;
+  }
+
+  if (summaryTypingCompletedSource === source && container.dataset.summaryTyped === source) {
+    return;
+  }
+
+  stopSummaryTypingAnimation();
+  summaryTypingSource = source;
+  container.dataset.summaryTyped = "";
+  container.classList.add("is-typing");
+  container.innerHTML = "";
+
+  const paragraphs = getSummaryParagraphs(source);
+  const queue = [];
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    const element = document.createElement("p");
+    element.className = "summary-reading-paragraph";
+    container.append(element);
+    queue.push({ type: "paragraph", element });
+    Array.from(paragraph).forEach((character) => {
+      queue.push({ type: "character", element, character });
+    });
+    if (paragraphIndex < paragraphs.length - 1) {
+      queue.push({ type: "pause", delay: 720 });
+    }
+  });
+
+  let index = 0;
+  const tick = () => {
+    if (summaryTypingSource !== source) return;
+    const item = queue[index];
+    if (!item) {
+      summaryTypingCompletedSource = source;
+      container.dataset.summaryTyped = source;
+      container.classList.remove("is-typing");
+      summaryTypingTimer = null;
+      return;
+    }
+
+    index += 1;
+    let delay = 88;
+    if (item.type === "character") {
+      item.element.textContent += item.character;
+      delay = getSummaryTypingDelay(item.character);
+      container.scrollTop = container.scrollHeight;
+    } else if (item.type === "pause") {
+      delay = item.delay;
+    } else {
+      delay = 160;
+    }
+    summaryTypingTimer = window.setTimeout(tick, delay);
+  };
+
+  summaryTypingTimer = window.setTimeout(tick, 500);
+}
+
+function stopSummaryTypingAnimation() {
+  if (!summaryTypingTimer) return;
+  window.clearTimeout(summaryTypingTimer);
+  summaryTypingTimer = null;
+}
+
+function getSummaryTypingDelay(character) {
+  if (/[.!?。！？…]/.test(character)) return 360;
+  if (/[,，、]/.test(character)) return 210;
+  if (/\s/.test(character)) return 45;
+  return 88;
+}
+
+function getSummaryParagraphs(value) {
+  return String(value || "")
     .trim()
     .split(/\n\s*\n|\n/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
+}
+
+function renderSummaryReadingText(value, options = {}) {
+  const { emptyText = "등록된 글이 없습니다." } = options;
+  const paragraphs = getSummaryParagraphs(value);
 
   if (paragraphs.length === 0) {
     return emptyText ? `<p class="summary-reading-paragraph is-empty">${escapeHtml(emptyText)}</p>` : "";
