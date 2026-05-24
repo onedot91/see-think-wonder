@@ -18,10 +18,20 @@
         <button class="role-button" id="teacherRoleButton" type="button">교사</button>
       </section>
 
+      <section class="teacher-start-view" id="teacherStartView" hidden>
+        <header class="view-head teacher-mode-head">
+          <h1>교사 화면</h1>
+        </header>
+        <div class="teacher-start-choice-grid">
+          <button class="teacher-start-choice is-stw" id="teacherStwStartButton" type="button">
+            <span>보기 · 생각하기 · 궁금하기</span>
+          </button>
+        </div>
+      </section>
+
       <section class="teacher-mode-view" id="teacherModeView" hidden>
         <header class="view-head teacher-mode-head">
           <h1>진행 방식</h1>
-          <button class="secondary-button" data-change-role type="button">처음으로</button>
         </header>
         <section class="teacher-upload-panel">
           <div>
@@ -50,7 +60,6 @@
           <h1><span id="teacherClearTrigger" title="관리 버튼 표시">결</span>과</h1>
           <div class="teacher-mode-tabs" id="teacherModeTabs"></div>
           <div class="teacher-top-tabs" id="teacherTopTabs"></div>
-          <button class="secondary-button" data-change-role type="button">처음으로</button>
         </header>
 
         <div class="empty-state" id="emptyState">아직 없습니다.</div>

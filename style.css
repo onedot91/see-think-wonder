@@ -233,12 +233,14 @@ textarea::placeholder {
   min-width: 0;
 }
 
+.teacher-start-view,
 .teacher-mode-view {
   display: grid;
   gap: 20px;
   min-width: 0;
 }
 
+.teacher-start-view[hidden],
 .teacher-mode-view[hidden] {
   display: none;
 }
@@ -253,6 +255,30 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
+}
+
+.teacher-start-choice-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.teacher-start-choice {
+  display: grid;
+  align-content: center;
+  min-height: 220px;
+  padding: 32px;
+  border: 2px solid #000000;
+  border-radius: 24px;
+  background: var(--block-lime);
+  color: #000000;
+  text-align: center;
+}
+
+.teacher-start-choice span {
+  font-size: clamp(2.4rem, 4vw, 4rem);
+  font-weight: 900;
+  line-height: 1.1;
 }
 
 .teacher-upload-panel {
@@ -2176,13 +2202,6 @@ button {
   cursor: pointer;
 }
 
-#teacherView .view-head [data-change-role] {
-  min-width: 150px;
-  min-height: 64px;
-  padding: 10px 24px;
-  font-size: 1.55rem;
-}
-
 #studentView .view-head {
   gap: 24px;
 }
@@ -2587,11 +2606,6 @@ textarea,
 
   #teacherView .view-head h1 {
     font-size: clamp(3rem, 14vw, 4.4rem);
-  }
-
-  #teacherView .view-head [data-change-role] {
-    min-width: 0;
-    width: 100%;
   }
 
   .teacher-panel-head {

@@ -29,6 +29,7 @@ const elements = {
   roleView: document.querySelector("#roleView"),
   backendStatus: document.querySelector("#backendStatus"),
   backendStatusText: document.querySelector("#backendStatusText"),
+  teacherStartView: document.querySelector("#teacherStartView"),
   teacherModeView: document.querySelector("#teacherModeView"),
   teacherView: document.querySelector("#teacherView"),
   teacherTitle: document.querySelector("#teacherView h1"),
@@ -38,6 +39,7 @@ const elements = {
   studentView: document.querySelector("#studentView"),
   studentWaitingView: document.querySelector("#studentWaitingView"),
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
+  teacherStwStartButton: document.querySelector("#teacherStwStartButton"),
   teacherModeChoiceButtons: document.querySelectorAll("[data-open-teacher-mode]"),
   classImageInput: document.querySelector("#classImageInput"),
   classImageCancelButton: document.querySelector("#classImageCancelButton"),
@@ -93,7 +95,8 @@ initStudentButtons();
 initResponses();
 restoreSavedSession();
 
-elements.teacherRoleButton.addEventListener("click", () => showTeacherModeView());
+elements.teacherRoleButton.addEventListener("click", () => showTeacherStartView());
+elements.teacherStwStartButton?.addEventListener("click", () => showTeacherModeView());
 elements.studentRoleButton.addEventListener("click", () => showStudentView());
 
 elements.teacherModeChoiceButtons.forEach((button) => {
@@ -354,6 +357,7 @@ function showRoleView() {
   closeConfirmModal();
   closeClassImageLightbox();
   elements.roleView.hidden = false;
+  elements.teacherStartView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
@@ -365,12 +369,39 @@ function isReturnToStartShortcut(event) {
   return event.ctrlKey && event.altKey && event.key === "Enter" && !event.isComposing;
 }
 
+async function showTeacherStartView() {
+  saveTeacherRole();
+  stopTeacherPolling();
+  stopStudentStepPolling();
+  closeConfirmModal();
+  closeClassImageLightbox();
+  savePresentationLockSetting(false).catch(() => {});
+  await setClassWaitingMode();
+  elements.roleView.hidden = true;
+  elements.teacherStartView.hidden = false;
+  elements.teacherModeView.hidden = true;
+  elements.teacherView.hidden = true;
+  elements.studentView.hidden = true;
+  elements.studentWaitingView.hidden = true;
+}
+
 async function showTeacherModeView() {
   saveTeacherRole();
   stopTeacherPolling();
   stopStudentStepPolling();
   closeConfirmModal();
   savePresentationLockSetting(false).catch(() => {});
+  await setClassWaitingMode();
+  refreshClassImage();
+  elements.roleView.hidden = true;
+  elements.teacherStartView.hidden = true;
+  elements.teacherModeView.hidden = false;
+  elements.teacherView.hidden = true;
+  elements.studentView.hidden = true;
+  elements.studentWaitingView.hidden = true;
+}
+
+async function setClassWaitingMode() {
   activeClassMode = null;
   if (isSupabaseReady()) {
     try {
@@ -379,12 +410,6 @@ async function showTeacherModeView() {
       showToast("대기 상태를 저장하지 못했습니다.");
     }
   }
-  refreshClassImage();
-  elements.roleView.hidden = true;
-  elements.teacherModeView.hidden = false;
-  elements.teacherView.hidden = true;
-  elements.studentView.hidden = true;
-  elements.studentWaitingView.hidden = true;
 }
 
 async function showTeacherView(selectedMode = null) {
@@ -408,6 +433,7 @@ async function showTeacherView(selectedMode = null) {
   await refreshResponses();
   startTeacherPolling();
   elements.roleView.hidden = true;
+  elements.teacherStartView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = false;
   elements.studentView.hidden = true;
@@ -425,6 +451,7 @@ function showStudentView() {
   resetStudentForm();
   activeClassMode = null;
   elements.roleView.hidden = true;
+  elements.teacherStartView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = false;
@@ -798,7 +825,7 @@ function resetStudentForm() {
 
 function restoreSavedSession() {
   if (loadSavedRole() === teacherRoleValue) {
-    showTeacherModeView();
+    showTeacherStartView();
     return true;
   }
 
@@ -824,6 +851,7 @@ function showStudentWaitingView() {
   stopTeacherPolling();
   currentStudentStep = "waiting";
   elements.roleView.hidden = true;
+  elements.teacherStartView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
@@ -837,6 +865,7 @@ function showStudentWaitingView() {
 
 function showStudentAnswerView(step) {
   elements.roleView.hidden = true;
+  elements.teacherStartView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentWaitingView.hidden = true;
