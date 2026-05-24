@@ -795,7 +795,7 @@ function renderSummaryRows(value = "") {
       <textarea class="summary-item summary-headline-input" rows="1" maxlength="120" placeholder="글의 헤드라인을 써 주세요." autocomplete="off">${escapeHtml(value)}</textarea>
     </label>
     <article class="summary-reading-card">
-      ${summaryText ? escapeHtml(summaryText) : "아직 등록된 글이 없습니다."}
+      ${renderSummaryReadingText(summaryText)}
     </article>
   `;
   elements.summaryList.append(row);
@@ -1395,7 +1395,7 @@ function renderSummaryText() {
   if (currentStudentStep === "summary") {
     const readingCard = elements.summaryList.querySelector(".summary-reading-card");
     if (readingCard) {
-      readingCard.textContent = summaryText || "아직 등록된 글이 없습니다.";
+      readingCard.innerHTML = renderSummaryReadingText(summaryText);
     } else {
       renderSummaryRows();
     }
@@ -1411,6 +1411,22 @@ function renderSummaryTextStatus() {
     return;
   }
   elements.summaryTextStatus.textContent = inputText === summaryText ? "등록 완료" : "등록해 주세요.";
+}
+
+function renderSummaryReadingText(value) {
+  const paragraphs = String(value || "")
+    .trim()
+    .split(/\n\s*\n|\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length === 0) {
+    return `<p class="summary-reading-paragraph is-empty">등록된 글이 없습니다.</p>`;
+  }
+
+  return paragraphs
+    .map((paragraph) => `<p class="summary-reading-paragraph">${escapeHtml(paragraph)}</p>`)
+    .join("");
 }
 
 async function loadSummaryTextSetting() {
@@ -1552,7 +1568,7 @@ function renderClassImage() {
   }
 
   if (elements.studentClassImageCard && elements.studentClassImage) {
-    const showForStudent = hasImage && currentStudentStep !== "student";
+    const showForStudent = hasImage && activeClassMode !== "summary" && currentStudentStep !== "student";
     elements.studentClassImageCard.hidden = !showForStudent;
     if (showForStudent) {
       elements.studentClassImage.src = classImageDataUrl;
@@ -2124,7 +2140,7 @@ function renderSummaryTextPanel() {
   panel.className = "teacher-dashboard-panel summary-text-panel";
   panel.innerHTML = `
     <h2>수업 글</h2>
-    <div class="summary-reading-text">${summaryText ? escapeHtml(summaryText) : "등록된 글이 없습니다."}</div>
+    <div class="summary-reading-text">${renderSummaryReadingText(summaryText)}</div>
   `;
   return panel;
 }
@@ -2283,7 +2299,7 @@ function buildResponsesExportHtml(exportedAt, mode) {
   <div class="summary">
     ${exportSummary}
   </div>
-  ${classImageDataUrl ? `<figure class="class-image"><img src="${escapeAttribute(classImageDataUrl)}" alt="수업 사진"></figure>` : ""}
+  ${mode !== "summary" && classImageDataUrl ? `<figure class="class-image"><img src="${escapeAttribute(classImageDataUrl)}" alt="수업 사진"></figure>` : ""}
   ${exportBody}
 </body>
 </html>`;

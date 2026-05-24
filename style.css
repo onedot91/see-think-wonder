@@ -312,21 +312,39 @@ textarea::placeholder {
 }
 
 .teacher-text-upload-panel {
-  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr) auto;
+  align-items: stretch;
+  min-height: 360px;
+  padding: 24px;
 }
 
 .teacher-summary-text-input {
   width: 100%;
-  min-height: 220px;
-  resize: vertical;
-  padding: 18px 20px;
+  height: 360px;
+  min-height: 360px;
+  max-height: 52vh;
+  resize: none;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 28px 32px;
   border: 2px solid #000000;
-  border-radius: 16px;
+  border-radius: 18px;
   background: #ffffff;
   color: #000000;
-  font-size: clamp(1.15rem, 1.8vw, 1.65rem);
-  font-weight: 800;
-  line-height: 1.45;
+  font-family: "Noto Serif KR", "Nanum Myeongjo", "Batang", "Times New Roman", serif;
+  font-size: clamp(1.25rem, 2.2vw, 2rem);
+  font-weight: 750;
+  line-height: 1.55;
+  text-indent: 1.1em;
+}
+
+#summaryStartButton {
+  min-height: 128px;
+  padding: 24px 32px;
+}
+
+#summaryStartButton span {
+  font-size: clamp(2.4rem, 4vw, 3.4rem);
 }
 
 .teacher-upload-preview,
@@ -783,9 +801,24 @@ textarea {
   border-radius: 0 0 18px 18px;
   background: #ffffff;
   color: #000000;
+  font-family: "Noto Serif KR", "Nanum Myeongjo", "Batang", "Times New Roman", serif;
   font-size: clamp(1.25rem, 2.2vw, 2rem);
   font-weight: 750;
-  line-height: 1.55;
+  line-height: 1.72;
+}
+
+.summary-reading-paragraph {
+  margin: 0 0 1.15em;
+  text-indent: 1.15em;
+}
+
+.summary-reading-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.summary-reading-paragraph.is-empty {
+  color: rgba(0, 0, 0, 0.45);
+  text-indent: 0;
 }
 
 .combined-response-card {
@@ -932,12 +965,28 @@ textarea {
 }
 
 .student-waiting-spinner {
-  width: 72px;
-  height: 72px;
-  border: 8px solid #e5e5e5;
-  border-top-color: #000000;
+  width: 86px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.student-waiting-spinner span {
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
-  animation: waiting-spin 900ms linear infinite;
+  background: #000000;
+  animation: waiting-dot 920ms ease-in-out infinite;
+}
+
+.student-waiting-spinner span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.student-waiting-spinner span:nth-child(3) {
+  animation-delay: 240ms;
 }
 
 .student-waiting-number {
@@ -967,9 +1016,17 @@ textarea {
   color: #6f777a;
 }
 
-@keyframes waiting-spin {
-  to {
-    transform: rotate(360deg);
+@keyframes waiting-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0) scale(0.82);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-5px) scale(1);
   }
 }
 
@@ -1154,9 +1211,15 @@ textarea {
   .student-step.is-entering .action-bar,
   .student-step.is-entering .routine-field,
   .student-waiting-spinner,
+  .student-waiting-spinner span,
   .postit-card {
     animation: none;
     transition: none;
+  }
+
+  .student-waiting-spinner span {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -1441,9 +1504,10 @@ button {
   border-radius: 14px;
   background: #ffffff;
   color: #000000;
+  font-family: "Noto Serif KR", "Nanum Myeongjo", "Batang", "Times New Roman", serif;
   font-size: clamp(1.25rem, 2vw, 1.9rem);
-  font-weight: 800;
-  line-height: 1.5;
+  font-weight: 750;
+  line-height: 1.72;
 }
 
 .summary-result-panel {
