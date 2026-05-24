@@ -699,6 +699,7 @@ function closeConfirmModal() {
   elements.confirmModal.hidden = true;
   elements.confirmModal.classList.remove("teacher-tools-locked");
   elements.confirmModal.classList.remove("student-results-modal");
+  elements.confirmModal.classList.remove("teacher-answer-modal");
   elements.modalSentenceList.innerHTML = "";
   elements.modalBackButton.hidden = false;
   elements.modalSubmitButton.textContent = "닫기";
@@ -1070,7 +1071,7 @@ async function loadResponses() {
     throw new Error("Supabase is not configured");
   }
 
-  const rows = await supabaseRequest(`/${supabaseTable}?select=*&order=created_at.desc`);
+  const rows = await supabaseRequest(`/${supabaseTable}?select=*&order=created_at.asc`);
   return rows.map(fromSupabaseRow);
 }
 
@@ -1546,7 +1547,7 @@ async function saveCombinedStep(values) {
     throw new Error("Supabase insert did not return a row");
   }
   const createdResponse = fromSupabaseRow(rows[0]);
-  responses = [createdResponse, ...responses];
+  responses = [...responses, createdResponse];
   return createdResponse;
 }
 
@@ -1595,7 +1596,7 @@ async function saveStudentStep(step, values) {
     throw new Error("Supabase insert did not return a row");
   }
   const createdResponse = fromSupabaseRow(rows[0]);
-  responses = [createdResponse, ...responses];
+  responses = [...responses, createdResponse];
   return createdResponse;
 }
 
@@ -1617,7 +1618,7 @@ async function replaceResponseByInsert(existingResponse, payload) {
 
   await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(existingResponse.id)}`, { method: "DELETE" });
   const updatedResponse = fromSupabaseRow(rows[0]);
-  responses = [updatedResponse, ...responses.filter((item) => item.id !== existingResponse.id)];
+  responses = responses.map((item) => (item.id === existingResponse.id ? updatedResponse : item));
   return updatedResponse;
 }
 
@@ -2051,7 +2052,7 @@ function renderCollectedAnswers(step, options = {}) {
     <div class="teacher-postit-grid" aria-label="${teacherSteps[step].label} 전체 답변">
       ${cards
         .map((card, index) => `
-          <article class="postit-card answer-${(index % answerAccentCount) + 1}" tabindex="0" role="button" data-student-name="${escapeAttribute(card.studentName)}" aria-label="${escapeAttribute(card.studentName)} 답변">
+          <article class="postit-card ${card.cardClass} answer-${(index % answerAccentCount) + 1}" tabindex="0" role="button" data-student-name="${escapeAttribute(card.studentName)}" aria-label="${escapeAttribute(card.studentName)} 답변">
             ${showDelete ? `<button
               class="postit-delete-button"
               type="button"
@@ -2104,8 +2105,7 @@ function renderCombinedAnswers(options = {}) {
 }
 
 function getCollectedCombinedAnswers() {
-  return Array.from({ length: studentCount }, (_, index) => getResponseByStudentName(`${index + 1}번`))
-    .filter(Boolean)
+  return getSubmittedStudentResponses()
     .flatMap((response) =>
       normalizeCombinedList(response.combined).map((value, answerIndex) => ({
         responseId: response.id,
@@ -2140,9 +2140,7 @@ function renderCombinedSentence(item) {
 }
 
 function getCollectedStepAnswers(step) {
-  return Array.from({ length: studentCount }, (_, index) => getResponseByStudentName(`${index + 1}번`))
-    .filter(Boolean)
-    .flatMap((response) => buildCollectedStepCards(response, step));
+  return getSubmittedStudentResponses().flatMap((response) => buildCollectedStepCards(response, step));
 }
 
 function buildCollectedStepCards(response, step) {
@@ -2154,6 +2152,7 @@ function buildCollectedStepCards(response, step) {
     studentName: response.name,
     step,
     answerIndex,
+    cardClass: getPostitLengthClass(value),
     compact: `<p>${escapeHtml(value)}</p>`,
     large: `<p><span class="sentence-block ${blockClass}">${escapeHtml(value)}</span></p>`,
   });
@@ -2169,6 +2168,13 @@ function buildCollectedStepCards(response, step) {
   return wonderItems.map((value, index) => ({ value, index })).filter((item) => item.value).map((item) => buildCard(item.value, item.index, "wonder-block"));
 }
 
+function getPostitLengthClass(value) {
+  const length = String(value || "").replace(/\s/g, "").length;
+  if (length >= 42) return "postit-text-long";
+  if (length >= 30) return "postit-text-medium";
+  return "";
+}
+
 function openTeacherStudentModal(studentName, step, selectedAnswerIndex = null) {
   const response = getResponseByStudentName(studentName);
   if (!response) return;
@@ -2180,13 +2186,19 @@ function openTeacherStudentModal(studentName, step, selectedAnswerIndex = null) 
   document.querySelector("#confirmModalTitle").textContent = studentName;
   elements.modalBackButton.hidden = true;
   elements.modalSubmitButton.textContent = "닫기";
+  elements.confirmModal.classList.add("teacher-answer-modal");
   elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
   elements.modalSentenceList.innerHTML = `
     <section class="teacher-response-set teacher-response-single">
       <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(response.id)}" aria-label="학생 답변 비우기" title="비우기">
         삭제
       </button>
-      ${renderStepResponse(response, step, selectedAnswerIndex)}
+      <div class="teacher-modal-focus-layout">
+        ${renderTeacherModalClassImage()}
+        <div class="teacher-modal-answer">
+          ${renderStepResponse(response, step, selectedAnswerIndex)}
+        </div>
+      </div>
     </section>
   `;
 
@@ -2219,13 +2231,19 @@ function openTeacherCombinedStudentModal(studentName, selectedAnswerIndex = null
   document.querySelector("#confirmModalTitle").textContent = studentName;
   elements.modalBackButton.hidden = true;
   elements.modalSubmitButton.textContent = "닫기";
+  elements.confirmModal.classList.add("teacher-answer-modal");
   elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
   elements.modalSentenceList.innerHTML = `
     <section class="teacher-response-set teacher-response-single">
       <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(response.id)}" aria-label="학생 답변 비우기" title="비우기">
         삭제
       </button>
-      ${renderCombinedValueCards(response.combined, selectedAnswerIndex)}
+      <div class="teacher-modal-focus-layout">
+        ${renderTeacherModalClassImage()}
+        <div class="teacher-modal-answer">
+          ${renderCombinedValueCards(response.combined, selectedAnswerIndex)}
+        </div>
+      </div>
     </section>
   `;
 
@@ -2245,6 +2263,16 @@ function openTeacherCombinedStudentModal(studentName, selectedAnswerIndex = null
 
   elements.confirmModal.hidden = false;
   elements.modalSubmitButton.focus();
+}
+
+function renderTeacherModalClassImage() {
+  if (!classImageDataUrl) return "";
+
+  return `
+    <figure class="teacher-modal-image">
+      <img src="${escapeAttribute(classImageDataUrl)}" alt="수업 사진">
+    </figure>
+  `;
 }
 
 function renderCombinedValueCards(values, selectedAnswerIndex = null) {
@@ -2349,6 +2377,14 @@ function getResponseByStudentName(studentName) {
 
 function getStudentResponses() {
   return responses.filter((item) => isStudentName(item.name));
+}
+
+function getSubmittedStudentResponses() {
+  return [...getStudentResponses()].sort((first, second) => {
+    const firstTime = Date.parse(first.createdAt || "") || 0;
+    const secondTime = Date.parse(second.createdAt || "") || 0;
+    return firstTime - secondTime;
+  });
 }
 
 function isStudentName(name) {
