@@ -14,7 +14,6 @@
           <span class="backend-status-dot" aria-hidden="true"></span>
           <span class="visually-hidden" id="backendStatusText">연결 확인</span>
         </div>
-        <img class="start-image" src="/start-page-cutout.png" alt="보기 생각하기 궁금해하기" />
         <button class="role-button" id="studentRoleButton" type="button">학생</button>
         <button class="role-button" id="teacherRoleButton" type="button">교사</button>
       </section>
@@ -24,6 +23,15 @@
           <h1>진행 방식</h1>
           <button class="secondary-button" data-change-role type="button">처음으로</button>
         </header>
+        <section class="teacher-upload-panel">
+          <div>
+            <h2>수업 사진</h2>
+            <p id="classImageStatus">4:3 사진을 업로드해 주세요.</p>
+          </div>
+          <img class="teacher-upload-preview" id="classImagePreview" alt="업로드한 수업 사진" hidden />
+          <label class="secondary-button upload-button" for="classImageInput">업로드</label>
+          <input id="classImageInput" type="file" accept="image/*" hidden />
+        </section>
         <div class="teacher-mode-choice-grid">
           <button class="teacher-mode-choice is-sequential" type="button" data-open-teacher-mode="sequential">
             <span>순차 진행</span>
@@ -52,6 +60,9 @@
         <header class="view-head">
           <h1 id="studentStepTitle">학생 번호</h1>
         </header>
+        <figure class="class-image-card" id="studentClassImageCard" hidden>
+          <img id="studentClassImage" alt="수업 사진" />
+        </figure>
 
         <form id="studentForm">
           <section class="student-step" data-step="student">

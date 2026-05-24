@@ -91,14 +91,6 @@ p {
   align-content: center;
 }
 
-.start-image {
-  grid-column: 1 / -1;
-  width: min(100%, 1220px);
-  max-height: 68vh;
-  margin: 0 auto -4px;
-  object-fit: contain;
-}
-
 .backend-status {
   position: absolute;
   top: 6px;
@@ -263,6 +255,44 @@ textarea::placeholder {
   gap: 20px;
 }
 
+.teacher-upload-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 20px 24px;
+  border: 2px solid #000000;
+  border-radius: 24px;
+  background: #ffffff;
+}
+
+.teacher-upload-panel h2 {
+  margin: 0 0 6px;
+  font-size: clamp(1.8rem, 2.6vw, 2.6rem);
+  line-height: 1.1;
+}
+
+.teacher-upload-panel p {
+  margin: 0;
+  font-size: clamp(1rem, 1.4vw, 1.25rem);
+  font-weight: 800;
+  color: rgba(0, 0, 0, 0.62);
+}
+
+.teacher-upload-preview,
+.class-image-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 2px solid #000000;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.upload-button {
+  cursor: pointer;
+}
+
 .teacher-mode-choice {
   display: grid;
   align-content: center;
@@ -335,6 +365,15 @@ textarea::placeholder {
   transform-origin: 50% 16px;
   will-change: opacity, transform;
   overflow-x: hidden;
+}
+
+.class-image-card {
+  width: min(100%, 820px);
+  margin: 0 auto;
+}
+
+.class-image-card[hidden] {
+  display: none;
 }
 
 .student-step h2 {
@@ -2192,11 +2231,6 @@ textarea,
     padding-top: 56px;
   }
 
-  .start-image {
-    max-height: 36vh;
-    margin-bottom: 0;
-  }
-
   .backend-status {
     left: 0;
     right: auto;
@@ -2244,6 +2278,14 @@ textarea,
 
   .teacher-mode-choice-grid {
     grid-template-columns: 1fr;
+  }
+
+  .teacher-upload-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-upload-preview {
+    max-width: 100%;
   }
 
   .teacher-mode-choice {

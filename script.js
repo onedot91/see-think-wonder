@@ -4,9 +4,12 @@ const supabaseTable = "stw_responses";
 const supabaseSettingsTable = "stw_settings";
 const activeStepSettingId = "active_step";
 const activeModeSettingId = "active_mode";
+const classImageSettingId = "class_image";
 const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
 const studentCount = 23;
 const answerAccentCount = 3;
+const classImageAspectRatio = 4 / 3;
+const classImageMaxWidth = 1200;
 const classModes = {
   sequential: "순차 진행",
   combined: "한 번에 작성",
@@ -29,6 +32,9 @@ const elements = {
   studentView: document.querySelector("#studentView"),
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
   teacherModeChoiceButtons: document.querySelectorAll("[data-open-teacher-mode]"),
+  classImageInput: document.querySelector("#classImageInput"),
+  classImagePreview: document.querySelector("#classImagePreview"),
+  classImageStatus: document.querySelector("#classImageStatus"),
   studentRoleButton: document.querySelector("#studentRoleButton"),
   changeRoleButtons: document.querySelectorAll("[data-change-role]"),
   studentStepTitle: document.querySelector("#studentStepTitle"),
@@ -36,6 +42,8 @@ const elements = {
   topPrevButton: document.querySelector("#topPrevButton"),
   topNextButton: document.querySelector("#topNextButton"),
   studentResultButton: document.querySelector("#studentResultButton"),
+  studentClassImageCard: document.querySelector("#studentClassImageCard"),
+  studentClassImage: document.querySelector("#studentClassImage"),
   groupButtons: document.querySelector("#groupButtons"),
   studentNumberInput: document.querySelector("#studentNumberInput"),
   seeList: document.querySelector("#seeList"),
@@ -56,6 +64,7 @@ let currentStudentStep = "student";
 let activeTeacherStep = "see";
 let activeClassStep = "see";
 let activeClassMode = null;
+let classImageDataUrl = "";
 let modalMode = "student";
 let teacherPollId = null;
 let studentStepPollId = null;
@@ -118,6 +127,10 @@ elements.topPrevButton?.addEventListener("click", () => {
 
 elements.topNextButton.addEventListener("click", () => {
   goToNextStudentStep();
+});
+
+elements.classImageInput?.addEventListener("change", () => {
+  uploadClassImage(elements.classImageInput.files?.[0]);
 });
 
 elements.studentResultButton?.addEventListener("click", () => {
@@ -287,6 +300,7 @@ async function showTeacherModeView() {
       showToast("대기 상태를 저장하지 못했습니다.");
     }
   }
+  refreshClassImage();
   elements.roleView.hidden = true;
   elements.teacherModeView.hidden = false;
   elements.teacherView.hidden = true;
@@ -299,6 +313,9 @@ async function showTeacherView(selectedMode = null) {
     activeClassMode = selectedMode;
     try {
       await saveActiveClassMode(selectedMode);
+      if (selectedMode === "sequential") {
+        await saveActiveClassStep("see");
+      }
     } catch {
       showToast("모드를 저장하지 못했습니다.");
     }
@@ -324,6 +341,7 @@ function showStudentView() {
   elements.teacherView.hidden = true;
   elements.studentView.hidden = false;
   elements.studentNumberInput?.focus();
+  refreshClassImage();
   refreshActiveClassMode();
   refreshActiveClassStep();
   startStudentStepPolling();
@@ -355,6 +373,7 @@ function showStudentStep(step) {
   elements.studentStepTitle.innerHTML = title.icon
     ? `<span class="step-title-icon" aria-hidden="true">${title.icon}</span><span class="step-title-text">${title.text}</span>`
     : `<span class="step-title-text">${title.text}</span>`;
+  renderClassImage();
   updateStudentTopActions(step);
 
   if (activeSection) {
@@ -446,6 +465,7 @@ async function goFromStudentToSee() {
 
   selectedStudentNumber = String(studentNumber);
   await refreshActiveClassMode({ renderStudent: false });
+  await refreshClassImage();
   await loadSelectedStudentResponse();
   showStudentStep(getStudentEntryStep());
   focusCurrentStepInput();
@@ -736,6 +756,7 @@ function startStudentStepPolling() {
     if (!elements.studentView.hidden) {
       refreshActiveClassMode();
       refreshActiveClassStep();
+      refreshClassImage();
     }
   }, 2000);
 }
@@ -811,6 +832,155 @@ async function refreshActiveClassMode(options = {}) {
   }
 
   return activeClassMode;
+}
+
+async function uploadClassImage(file) {
+  if (!file) return;
+
+  if (!isSupabaseReady()) {
+    showToast("DB 설정이 필요합니다.");
+    elements.classImageInput.value = "";
+    return;
+  }
+
+  try {
+    if (elements.classImageStatus) {
+      elements.classImageStatus.textContent = "업로드 중입니다.";
+    }
+    const dataUrl = await prepareClassImage(file);
+    await saveClassImageSetting(dataUrl);
+    classImageDataUrl = dataUrl;
+    renderClassImage();
+    showToast("사진을 업로드했습니다.");
+  } catch (error) {
+    showToast(error.message || "사진을 업로드하지 못했습니다.");
+    renderClassImage();
+  } finally {
+    elements.classImageInput.value = "";
+  }
+}
+
+async function refreshClassImage() {
+  const previousImage = classImageDataUrl;
+
+  try {
+    classImageDataUrl = await loadClassImageSetting();
+  } catch {
+    classImageDataUrl = previousImage;
+  }
+
+  renderClassImage();
+  return classImageDataUrl;
+}
+
+function renderClassImage() {
+  const hasImage = Boolean(classImageDataUrl);
+
+  if (elements.classImagePreview) {
+    elements.classImagePreview.hidden = !hasImage;
+    if (hasImage) {
+      elements.classImagePreview.src = classImageDataUrl;
+    } else {
+      elements.classImagePreview.removeAttribute("src");
+    }
+  }
+
+  if (elements.classImageStatus) {
+    elements.classImageStatus.textContent = hasImage ? "업로드 완료" : "4:3 사진을 업로드해 주세요.";
+  }
+
+  if (elements.studentClassImageCard && elements.studentClassImage) {
+    const showForStudent = hasImage && currentStudentStep !== "student";
+    elements.studentClassImageCard.hidden = !showForStudent;
+    if (showForStudent) {
+      elements.studentClassImage.src = classImageDataUrl;
+    } else {
+      elements.studentClassImage.removeAttribute("src");
+    }
+  }
+}
+
+async function loadClassImageSetting() {
+  if (!isSupabaseReady()) {
+    return classImageDataUrl;
+  }
+
+  const rows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(classImageSettingId)}&select=value&limit=1`
+  );
+  return rows[0]?.value || "";
+}
+
+async function saveClassImageSetting(value) {
+  if (!isSupabaseReady()) {
+    return;
+  }
+
+  const payload = {
+    id: classImageSettingId,
+    value,
+    updated_at: new Date().toISOString(),
+  };
+
+  const existingRows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(classImageSettingId)}&select=id&limit=1`
+  );
+
+  if (existingRows[0]) {
+    await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(classImageSettingId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    return;
+  }
+
+  await supabaseRequest(`/${supabaseSettingsTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function prepareClassImage(file) {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("사진 파일만 업로드할 수 있습니다.");
+  }
+
+  const image = await loadImageFromFile(file);
+  const ratio = image.naturalWidth / image.naturalHeight;
+  if (Math.abs(ratio - classImageAspectRatio) > 0.03) {
+    throw new Error("4:3 비율의 사진을 업로드해 주세요.");
+  }
+
+  const width = Math.min(classImageMaxWidth, image.naturalWidth);
+  const height = Math.round(width / classImageAspectRatio);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0, width, height);
+
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.addEventListener("load", () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    }, { once: true });
+
+    image.addEventListener("error", () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("사진을 읽지 못했습니다."));
+    }, { once: true });
+
+    image.src = objectUrl;
+  });
 }
 
 async function loadActiveClassStep() {
@@ -1317,10 +1487,17 @@ function renderTeacherModeTabs() {
       if (!isClassMode(nextMode)) return;
 
       activeClassMode = nextMode;
+      if (nextMode === "sequential") {
+        activeClassStep = "see";
+        activeTeacherStep = "see";
+      }
       renderResponses();
 
       try {
         await saveActiveClassMode(nextMode);
+        if (nextMode === "sequential") {
+          await saveActiveClassStep("see");
+        }
       } catch {
         showToast("모드를 바꾸지 못했습니다.");
       }
