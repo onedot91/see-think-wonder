@@ -817,7 +817,7 @@ function renderSummaryRows(value = "") {
     <article class="summary-reading-card"></article>
   `;
   elements.summaryList.append(row);
-  startSummaryTypingAnimation(row.querySelector(".summary-reading-card"), summaryText);
+  startSummaryTypingAnimation(row.querySelector(".summary-reading-card"), summaryText, { restart: true });
   row.querySelector("[data-summary-submit]")?.addEventListener("click", () => {
     submitCurrentStudentStep();
   });
@@ -1504,8 +1504,9 @@ function normalizeEditableText(value) {
     .trim();
 }
 
-function startSummaryTypingAnimation(container, value) {
+function startSummaryTypingAnimation(container, value, options = {}) {
   if (!container) return;
+  const { restart = false } = options;
   const source = String(value || "").trim();
 
   if (!source) {
@@ -1518,11 +1519,11 @@ function startSummaryTypingAnimation(container, value) {
     return;
   }
 
-  if (summaryTypingSource === source && summaryTypingContainer === container && container.classList.contains("is-typing")) {
+  if (!restart && summaryTypingSource === source && summaryTypingContainer === container && container.classList.contains("is-typing")) {
     return;
   }
 
-  if (summaryTypingCompletedSource === source && container.dataset.summaryTyped === source) {
+  if (!restart && summaryTypingCompletedSource === source && container.dataset.summaryTyped === source) {
     return;
   }
 

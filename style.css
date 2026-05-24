@@ -800,7 +800,7 @@ textarea {
   display: block;
   width: 100%;
   min-height: 112px;
-  padding: 24px 210px 24px 28px;
+  padding: 24px 170px 24px 28px;
   border: 2px solid #000000;
   border-bottom-width: 0;
   border-radius: 18px 18px 0 0;
@@ -864,10 +864,10 @@ textarea {
   position: absolute;
   right: 28px;
   bottom: 20px;
-  min-width: 150px;
-  min-height: 58px;
-  padding: 10px 24px;
-  font-size: 1.45rem;
+  min-width: 116px;
+  min-height: 54px;
+  padding: 8px 18px;
+  font-size: 1.25rem;
 }
 
 .summary-reading-paragraph {
