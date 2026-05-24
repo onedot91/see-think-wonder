@@ -790,11 +790,17 @@ textarea {
   gap: 0;
 }
 
+.summary-headline-field {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
 .summary-headline-input {
   display: block;
   width: 100%;
   min-height: 112px;
-  padding: 24px 28px;
+  padding: 24px 270px 24px 28px;
   border: 2px solid #000000;
   border-bottom-width: 0;
   border-radius: 18px 18px 0 0;
@@ -831,13 +837,10 @@ textarea {
   overflow-wrap: break-word;
 }
 
-.summary-submit-row {
-  display: flex;
-  justify-content: flex-end;
-  padding: 22px 0 0;
-}
-
 .summary-submit-button {
+  position: absolute;
+  right: 28px;
+  bottom: 20px;
   min-width: 220px;
   min-height: 72px;
 }

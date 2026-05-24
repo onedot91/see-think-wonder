@@ -638,7 +638,7 @@ function updateStudentSubmitState() {
   elements.topNextButton.disabled = !isAnswerStep || !hasCurrentStudentInput();
   updateSummarySubmitButtonState();
   if (elements.studentResultButton) {
-    elements.studentResultButton.hidden = !hasSubmittedCurrentStudentStep();
+    elements.studentResultButton.hidden = currentStudentStep === "summary" || !hasSubmittedCurrentStudentStep();
   }
 }
 
@@ -809,13 +809,11 @@ function renderSummaryRows(value = "") {
   row.innerHTML = `
     <label class="summary-headline-field">
       <textarea class="summary-item summary-headline-input" rows="1" maxlength="120" placeholder="글의 헤드라인을 써 주세요." autocomplete="off">${escapeHtml(value)}</textarea>
+      <button class="primary-button summary-submit-button" type="button" data-summary-submit>제출</button>
     </label>
     <article class="summary-reading-card">
       ${renderSummaryReadingText(summaryText)}
     </article>
-    <div class="summary-submit-row">
-      <button class="primary-button summary-submit-button" type="button" data-summary-submit>제출</button>
-    </div>
   `;
   elements.summaryList.append(row);
   row.querySelector("[data-summary-submit]")?.addEventListener("click", () => {
