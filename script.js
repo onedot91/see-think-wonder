@@ -44,6 +44,9 @@ const elements = {
   studentResultButton: document.querySelector("#studentResultButton"),
   studentClassImageCard: document.querySelector("#studentClassImageCard"),
   studentClassImage: document.querySelector("#studentClassImage"),
+  classImageLightbox: document.querySelector("#classImageLightbox"),
+  classImageLightboxImage: document.querySelector("#classImageLightboxImage"),
+  classImageLightboxClose: document.querySelector("#classImageLightboxClose"),
   groupButtons: document.querySelector("#groupButtons"),
   studentNumberInput: document.querySelector("#studentNumberInput"),
   seeList: document.querySelector("#seeList"),
@@ -131,6 +134,32 @@ elements.topNextButton.addEventListener("click", () => {
 
 elements.classImageInput?.addEventListener("change", () => {
   uploadClassImage(elements.classImageInput.files?.[0]);
+});
+
+elements.studentClassImageCard?.addEventListener("click", () => {
+  openClassImageLightbox();
+});
+
+elements.studentClassImageCard?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  openClassImageLightbox();
+});
+
+elements.classImageLightboxClose?.addEventListener("click", () => {
+  closeClassImageLightbox();
+});
+
+elements.classImageLightbox?.addEventListener("click", (event) => {
+  if (event.target === elements.classImageLightbox) {
+    closeClassImageLightbox();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && elements.classImageLightbox && !elements.classImageLightbox.hidden) {
+    closeClassImageLightbox();
+  }
 });
 
 elements.studentResultButton?.addEventListener("click", () => {
@@ -374,6 +403,7 @@ function showStudentStep(step) {
     ? `<span class="step-title-icon" aria-hidden="true">${title.icon}</span><span class="step-title-text">${title.text}</span>`
     : `<span class="step-title-text">${title.text}</span>`;
   renderClassImage();
+  animateClassImageEntrance(step);
   updateStudentTopActions(step);
 
   if (activeSection) {
@@ -381,6 +411,14 @@ function showStudentStep(step) {
       activeSection.classList.add("is-entering");
     });
   }
+}
+
+function animateClassImageEntrance(step) {
+  if (!elements.studentView || !classImageDataUrl || step === "student") return;
+
+  elements.studentView.classList.remove("is-image-entering");
+  void elements.studentView.offsetWidth;
+  elements.studentView.classList.add("is-image-entering");
 }
 
 function updateStudentTopActions(step) {
@@ -559,6 +597,24 @@ function closeConfirmModal() {
   elements.modalSentenceList.innerHTML = "";
   elements.modalBackButton.hidden = false;
   elements.modalSubmitButton.textContent = "닫기";
+}
+
+function openClassImageLightbox() {
+  if (!classImageDataUrl || !elements.classImageLightbox || !elements.classImageLightboxImage) return;
+
+  elements.classImageLightboxImage.src = classImageDataUrl;
+  elements.classImageLightbox.hidden = false;
+  elements.classImageLightboxClose?.focus();
+}
+
+function closeClassImageLightbox() {
+  if (!elements.classImageLightbox || !elements.classImageLightboxImage) return;
+
+  elements.classImageLightbox.hidden = true;
+  elements.classImageLightboxImage.removeAttribute("src");
+  if (!elements.studentClassImageCard?.hidden) {
+    elements.studentClassImageCard.focus();
+  }
 }
 
 async function openStudentResults() {

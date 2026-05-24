@@ -60,7 +60,7 @@
         <header class="view-head">
           <h1 id="studentStepTitle">학생 번호</h1>
         </header>
-        <figure class="class-image-card" id="studentClassImageCard" hidden>
+        <figure class="class-image-card" id="studentClassImageCard" tabindex="0" role="button" aria-label="수업 사진 크게 보기" hidden>
           <img id="studentClassImage" alt="수업 사진" />
         </figure>
 
@@ -124,6 +124,11 @@
         </div>
         <div class="modal-sentence-list" id="modalSentenceList"></div>
       </section>
+    </div>
+
+    <div class="image-lightbox" id="classImageLightbox" hidden>
+      <button class="image-lightbox-close" id="classImageLightboxClose" type="button" aria-label="닫기">닫기</button>
+      <img id="classImageLightboxImage" alt="수업 사진 크게 보기" />
     </div>
 
     <script type="module" src="/script.js"></script>
