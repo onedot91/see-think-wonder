@@ -107,6 +107,7 @@ let summaryTextSaveSequence = 0;
 let summaryTypingTimer = null;
 let summaryTypingSource = "";
 let summaryTypingCompletedSource = "";
+let summaryTypingContainer = null;
 
 initStudentButtons();
 initResponses();
@@ -1511,8 +1512,13 @@ function startSummaryTypingAnimation(container, value) {
     stopSummaryTypingAnimation();
     summaryTypingSource = "";
     summaryTypingCompletedSource = "";
+    summaryTypingContainer = null;
     container.classList.remove("is-typing");
     container.innerHTML = renderSummaryReadingText("");
+    return;
+  }
+
+  if (summaryTypingSource === source && summaryTypingContainer === container && container.classList.contains("is-typing")) {
     return;
   }
 
@@ -1522,6 +1528,7 @@ function startSummaryTypingAnimation(container, value) {
 
   stopSummaryTypingAnimation();
   summaryTypingSource = source;
+  summaryTypingContainer = container;
   container.dataset.summaryTyped = "";
   container.classList.add("is-typing");
   container.innerHTML = "";
@@ -1529,12 +1536,9 @@ function startSummaryTypingAnimation(container, value) {
   const paragraphs = getSummaryParagraphs(source);
   const queue = [];
   paragraphs.forEach((paragraph, paragraphIndex) => {
-    const element = document.createElement("p");
-    element.className = "summary-reading-paragraph";
-    container.append(element);
-    queue.push({ type: "paragraph", element });
+    queue.push({ type: "paragraph" });
     Array.from(paragraph).forEach((character) => {
-      queue.push({ type: "character", element, character });
+      queue.push({ type: "character", character });
     });
     if (paragraphIndex < paragraphs.length - 1) {
       queue.push({ type: "pause", delay: 720 });
@@ -1542,13 +1546,15 @@ function startSummaryTypingAnimation(container, value) {
   });
 
   let index = 0;
+  let activeParagraph = null;
   const tick = () => {
-    if (summaryTypingSource !== source) return;
+    if (summaryTypingSource !== source || summaryTypingContainer !== container) return;
     const item = queue[index];
     if (!item) {
       summaryTypingCompletedSource = source;
       container.dataset.summaryTyped = source;
       container.classList.remove("is-typing");
+      activeParagraph?.classList.remove("is-active");
       summaryTypingTimer = null;
       return;
     }
@@ -1556,12 +1562,16 @@ function startSummaryTypingAnimation(container, value) {
     index += 1;
     let delay = 88;
     if (item.type === "character") {
-      item.element.textContent += item.character;
+      activeParagraph.textContent += item.character;
       delay = getSummaryTypingDelay(item.character);
       container.scrollTop = container.scrollHeight;
     } else if (item.type === "pause") {
       delay = item.delay;
     } else {
+      activeParagraph?.classList.remove("is-active");
+      activeParagraph = document.createElement("p");
+      activeParagraph.className = "summary-reading-paragraph is-active";
+      container.append(activeParagraph);
       delay = 160;
     }
     summaryTypingTimer = window.setTimeout(tick, delay);
@@ -1571,8 +1581,9 @@ function startSummaryTypingAnimation(container, value) {
 }
 
 function stopSummaryTypingAnimation() {
-  if (!summaryTypingTimer) return;
-  window.clearTimeout(summaryTypingTimer);
+  if (summaryTypingTimer) {
+    window.clearTimeout(summaryTypingTimer);
+  }
   summaryTypingTimer = null;
 }
 

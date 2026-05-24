@@ -837,7 +837,7 @@ textarea {
   overflow-wrap: break-word;
 }
 
-.summary-reading-card.is-typing .summary-reading-paragraph:last-child::after {
+.summary-reading-card.is-typing .summary-reading-paragraph.is-active::after {
   content: "";
   display: inline-block;
   width: 0.5em;
