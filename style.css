@@ -234,6 +234,7 @@ textarea::placeholder {
 }
 
 .teacher-start-view,
+.teacher-summary-setup-view,
 .teacher-mode-view {
   display: grid;
   gap: 20px;
@@ -241,6 +242,7 @@ textarea::placeholder {
 }
 
 .teacher-start-view[hidden],
+.teacher-summary-setup-view[hidden],
 .teacher-mode-view[hidden] {
   display: none;
 }
@@ -275,6 +277,10 @@ textarea::placeholder {
   text-align: center;
 }
 
+.teacher-start-choice.is-summary {
+  background: var(--block-cream);
+}
+
 .teacher-start-choice span {
   font-size: clamp(2.4rem, 4vw, 4rem);
   font-weight: 900;
@@ -303,6 +309,24 @@ textarea::placeholder {
   font-size: clamp(1rem, 1.4vw, 1.25rem);
   font-weight: 800;
   color: rgba(0, 0, 0, 0.62);
+}
+
+.teacher-text-upload-panel {
+  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr) auto;
+}
+
+.teacher-summary-text-input {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  padding: 18px 20px;
+  border: 2px solid #000000;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #000000;
+  font-size: clamp(1.15rem, 1.8vw, 1.65rem);
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .teacher-upload-preview,
@@ -719,6 +743,49 @@ textarea {
 .combined-list {
   display: grid;
   gap: 18px;
+}
+
+.summary-student-list,
+.summary-response-card {
+  display: grid;
+  gap: 0;
+}
+
+.summary-headline-input {
+  display: block;
+  width: 100%;
+  min-height: 112px;
+  padding: 24px 28px;
+  border: 2px solid #000000;
+  border-bottom-width: 0;
+  border-radius: 18px 18px 0 0;
+  background: var(--block-cream);
+  color: #000000;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 900;
+  line-height: 1.18;
+  text-align: center;
+  resize: none;
+  overflow: hidden;
+}
+
+.summary-headline-input::placeholder {
+  color: rgba(0, 0, 0, 0.38);
+}
+
+.summary-reading-card {
+  min-height: 360px;
+  max-height: 52vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  padding: 28px 32px;
+  border: 2px solid #000000;
+  border-radius: 0 0 18px 18px;
+  background: #ffffff;
+  color: #000000;
+  font-size: clamp(1.25rem, 2.2vw, 2rem);
+  font-weight: 750;
+  line-height: 1.55;
 }
 
 .combined-response-card {
@@ -1354,6 +1421,33 @@ button {
   font-size: 2.2rem;
   font-weight: 900;
   line-height: 1.1;
+}
+
+.teacher-dashboard.is-summary {
+  gap: 20px;
+}
+
+.summary-text-panel {
+  background: var(--block-cream);
+}
+
+.summary-reading-text {
+  min-height: 180px;
+  max-height: 36vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  padding: 20px 22px;
+  border: 2px solid #000000;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #000000;
+  font-size: clamp(1.25rem, 2vw, 1.9rem);
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.summary-result-panel {
+  background: #ffffff;
 }
 
 .teacher-panel-head {
@@ -2422,6 +2516,11 @@ button:disabled {
   border-color: #000000;
 }
 
+[data-step="summary"] {
+  background: #ffffff;
+  border-color: #000000;
+}
+
 [data-step="review"] {
   background: var(--surface);
   border-color: #000000;
@@ -2717,6 +2816,10 @@ textarea,
   }
 
   .teacher-upload-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-text-upload-panel {
     grid-template-columns: 1fr;
   }
 

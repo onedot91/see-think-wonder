@@ -26,7 +26,30 @@
           <button class="teacher-start-choice is-stw" id="teacherStwStartButton" type="button">
             <span>보기 · 생각하기 · 궁금하기</span>
           </button>
+          <button class="teacher-start-choice is-summary" id="teacherSummaryStartButton" type="button">
+            <span>헤드라인</span>
+          </button>
         </div>
+      </section>
+
+      <section class="teacher-summary-setup-view" id="teacherSummarySetupView" hidden>
+        <header class="view-head teacher-mode-head">
+          <h1>헤드라인</h1>
+        </header>
+        <section class="teacher-upload-panel teacher-text-upload-panel">
+          <div>
+            <h2>수업 글</h2>
+            <p id="summaryTextStatus">글을 업로드해 주세요.</p>
+          </div>
+          <textarea class="teacher-summary-text-input" id="summaryTextInput" placeholder="수업에서 사용할 글을 넣어 주세요."></textarea>
+          <div class="teacher-upload-actions">
+            <label class="secondary-button upload-button" for="summaryTextFileInput">업로드</label>
+          </div>
+          <input id="summaryTextFileInput" type="file" accept=".txt,text/plain" hidden />
+        </section>
+        <button class="teacher-start-choice is-summary" id="summaryStartButton" type="button">
+          <span>시작</span>
+        </button>
       </section>
 
       <section class="teacher-mode-view" id="teacherModeView" hidden>
@@ -112,6 +135,10 @@
 
           <section class="student-step" data-step="combined" hidden>
             <div class="combined-list" id="combinedList"></div>
+          </section>
+
+          <section class="student-step" data-step="summary" hidden>
+            <div class="summary-student-list" id="summaryList"></div>
           </section>
 
         </form>

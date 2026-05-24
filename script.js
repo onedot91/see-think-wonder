@@ -5,6 +5,7 @@ const supabaseSettingsTable = "stw_settings";
 const activeStepSettingId = "active_step";
 const activeModeSettingId = "active_mode";
 const classImageSettingId = "class_image";
+const summaryTextSettingId = "summary_text";
 const presentationLockSettingId = "presentation_lock";
 const responseClearCutoffSettingId = "response_clear_cutoff";
 const savedStudentNumberKey = "stw_student_number";
@@ -18,6 +19,7 @@ const classImageJpegQuality = 0.9;
 const classModes = {
   sequential: "순차 진행",
   combined: "한 번에 작성",
+  summary: "헤드라인",
 };
 const teacherSteps = {
   see: { label: "보기", empty: "미제출" },
@@ -30,6 +32,7 @@ const elements = {
   backendStatus: document.querySelector("#backendStatus"),
   backendStatusText: document.querySelector("#backendStatusText"),
   teacherStartView: document.querySelector("#teacherStartView"),
+  teacherSummarySetupView: document.querySelector("#teacherSummarySetupView"),
   teacherModeView: document.querySelector("#teacherModeView"),
   teacherView: document.querySelector("#teacherView"),
   teacherTitle: document.querySelector("#teacherView h1"),
@@ -40,6 +43,11 @@ const elements = {
   studentWaitingView: document.querySelector("#studentWaitingView"),
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
   teacherStwStartButton: document.querySelector("#teacherStwStartButton"),
+  teacherSummaryStartButton: document.querySelector("#teacherSummaryStartButton"),
+  summaryTextInput: document.querySelector("#summaryTextInput"),
+  summaryTextFileInput: document.querySelector("#summaryTextFileInput"),
+  summaryTextStatus: document.querySelector("#summaryTextStatus"),
+  summaryStartButton: document.querySelector("#summaryStartButton"),
   teacherModeChoiceButtons: document.querySelectorAll("[data-open-teacher-mode]"),
   classImageInput: document.querySelector("#classImageInput"),
   classImageCancelButton: document.querySelector("#classImageCancelButton"),
@@ -66,6 +74,7 @@ const elements = {
   thinkList: document.querySelector("#thinkList"),
   wonderList: document.querySelector("#wonderList"),
   combinedList: document.querySelector("#combinedList"),
+  summaryList: document.querySelector("#summaryList"),
   responseList: document.querySelector("#responseList"),
   emptyState: document.querySelector("#emptyState"),
   confirmModal: document.querySelector("#confirmModal"),
@@ -81,6 +90,7 @@ let activeTeacherStep = "see";
 let activeClassStep = "see";
 let activeClassMode = null;
 let classImageDataUrl = "";
+let summaryText = "";
 let activePresentationLock = false;
 let responseClearCutoff = "";
 let modalMode = "student";
@@ -98,6 +108,7 @@ restoreSavedSession();
 
 elements.teacherRoleButton.addEventListener("click", () => showTeacherStartView());
 elements.teacherStwStartButton?.addEventListener("click", () => showTeacherModeView());
+elements.teacherSummaryStartButton?.addEventListener("click", () => showTeacherSummarySetupView());
 elements.studentRoleButton.addEventListener("click", () => showStudentView());
 
 elements.teacherModeChoiceButtons.forEach((button) => {
@@ -170,6 +181,19 @@ elements.classImageInput?.addEventListener("change", () => {
 
 elements.classImageCancelButton?.addEventListener("click", () => {
   cancelClassImageUpload();
+});
+
+elements.summaryTextFileInput?.addEventListener("change", () => {
+  uploadSummaryText(elements.summaryTextFileInput.files?.[0]);
+});
+
+elements.summaryTextInput?.addEventListener("input", () => {
+  summaryText = elements.summaryTextInput.value;
+  renderSummaryTextStatus();
+});
+
+elements.summaryStartButton?.addEventListener("click", () => {
+  startSummaryClass();
 });
 
 elements.studentClassImageCard?.addEventListener("click", () => {
@@ -246,6 +270,10 @@ function loadSelectedStudentResponse() {
 }
 
 async function submitCurrentStudentStep() {
+  if (currentStudentStep === "summary") {
+    await submitSummaryStep();
+    return;
+  }
   if (currentStudentStep === "combined") {
     await submitCombinedStep();
     return;
@@ -285,6 +313,30 @@ async function submitCombinedStep() {
   renderResponses();
   showToast(`${getStudentName()} 제출 완료`);
   focusFirstCombinedInput();
+}
+
+async function submitSummaryStep() {
+  const headline = getSummaryInputValue();
+  if (!getStudentName()) {
+    showToast("학생 번호를 입력해 주세요.");
+    return;
+  }
+  if (!headline) {
+    showToast("글의 헤드라인을 써 주세요.");
+    return;
+  }
+
+  try {
+    await appendStudentStep("summary", headline);
+  } catch {
+    showToast("헤드라인을 제출하지 못했습니다.");
+    return;
+  }
+
+  clearSummaryInput();
+  renderResponses();
+  showToast(`${getStudentName()} 헤드라인 제출 완료`);
+  focusSummaryInput();
 }
 
 async function submitSeeStep() {
@@ -359,6 +411,7 @@ function showRoleView() {
   closeClassImageLightbox();
   elements.roleView.hidden = false;
   elements.teacherStartView.hidden = true;
+  elements.teacherSummarySetupView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
@@ -380,10 +433,30 @@ async function showTeacherStartView() {
   await setClassWaitingMode();
   elements.roleView.hidden = true;
   elements.teacherStartView.hidden = false;
+  elements.teacherSummarySetupView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
   elements.studentWaitingView.hidden = true;
+}
+
+async function showTeacherSummarySetupView() {
+  saveTeacherRole();
+  stopTeacherPolling();
+  stopStudentStepPolling();
+  closeConfirmModal();
+  closeClassImageLightbox();
+  savePresentationLockSetting(false).catch(() => {});
+  await setClassWaitingMode();
+  await refreshSummaryText();
+  elements.roleView.hidden = true;
+  elements.teacherStartView.hidden = true;
+  elements.teacherSummarySetupView.hidden = false;
+  elements.teacherModeView.hidden = true;
+  elements.teacherView.hidden = true;
+  elements.studentView.hidden = true;
+  elements.studentWaitingView.hidden = true;
+  elements.summaryTextInput?.focus();
 }
 
 async function showTeacherModeView() {
@@ -396,6 +469,7 @@ async function showTeacherModeView() {
   refreshClassImage();
   elements.roleView.hidden = true;
   elements.teacherStartView.hidden = true;
+  elements.teacherSummarySetupView.hidden = true;
   elements.teacherModeView.hidden = false;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
@@ -430,11 +504,13 @@ async function showTeacherView(selectedMode = null) {
   }
   await refreshActiveClassStep({ renderStudent: false });
   await refreshClassImage();
+  await refreshSummaryText();
   activeTeacherStep = activeClassStep;
   await refreshResponses();
   startTeacherPolling();
   elements.roleView.hidden = true;
   elements.teacherStartView.hidden = true;
+  elements.teacherSummarySetupView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = false;
   elements.studentView.hidden = true;
@@ -453,6 +529,7 @@ function showStudentView() {
   activeClassMode = null;
   elements.roleView.hidden = true;
   elements.teacherStartView.hidden = true;
+  elements.teacherSummarySetupView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = false;
@@ -486,6 +563,7 @@ function showStudentStep(step) {
     think: { icon: "🤔", text: "어떤 생각이 드나요?" },
     wonder: { icon: "❓", text: "더 알고 싶은 점은 무엇인가요?" },
     combined: { icon: "✍", text: "한 번에 작성하기" },
+    summary: { icon: "✍", text: "헤드라인 작성하기" },
     waiting: { icon: "", text: "대기 중" },
   };
   const title = titles[step] || titles.student;
@@ -524,6 +602,7 @@ function updateStudentTopActions(step) {
     think: { prev: false, next: "제출" },
     wonder: { prev: false, next: "제출" },
     combined: { prev: false, next: "제출" },
+    summary: { prev: false, next: "제출" },
     waiting: { prev: false, next: "대기 중", hideNext: true },
   };
   const action = topActionByStep[step] || topActionByStep.student;
@@ -537,7 +616,7 @@ function updateStudentTopActions(step) {
 }
 
 function updateStudentSubmitState() {
-  const isAnswerStep = isTeacherStep(currentStudentStep) || currentStudentStep === "combined";
+  const isAnswerStep = isTeacherStep(currentStudentStep) || currentStudentStep === "combined" || currentStudentStep === "summary";
 
   if (currentStudentStep === "student") {
     elements.topNextButton.hidden = false;
@@ -555,6 +634,10 @@ function updateStudentSubmitState() {
 }
 
 function hasCurrentStudentInput() {
+  if (currentStudentStep === "summary") {
+    return getSummaryInputValue().length > 0;
+  }
+
   if (currentStudentStep === "combined") {
     return isCompleteCombinedItem(getCombinedInputValues());
   }
@@ -564,6 +647,10 @@ function hasCurrentStudentInput() {
 
 function hasSubmittedCurrentStudentStep() {
   const response = getSelectedStudentResponse();
+  if (currentStudentStep === "summary") {
+    return hasSubmittedStep(response, "summary");
+  }
+
   if (currentStudentStep === "combined") {
     return normalizeCombinedList(response?.combined).length > 0;
   }
@@ -601,6 +688,7 @@ async function goFromStudentToSee() {
   saveSelectedStudentNumber(selectedStudentNumber);
   await refreshActiveClassMode({ renderStudent: false });
   await refreshClassImage();
+  await refreshSummaryText();
   await loadSelectedStudentResponse();
   const entryStep = getStudentEntryStep();
   if (entryStep === "waiting") {
@@ -616,6 +704,10 @@ function getStudentEntryStep() {
     return "waiting";
   }
 
+  if (activeClassMode === "summary") {
+    return "summary";
+  }
+
   return activeClassMode === "combined" ? "combined" : activeClassStep;
 }
 
@@ -625,6 +717,7 @@ function renderEmptyStepInputs() {
   renderThinkRows();
   renderWonderRows();
   renderCombinedRows();
+  renderSummaryRows();
 }
 
 function addSeeRow(value = "") {
@@ -694,6 +787,22 @@ function renderCombinedRows(values = {}) {
   resizeTextareas(row);
 }
 
+function renderSummaryRows(value = "") {
+  elements.summaryList.innerHTML = "";
+  const row = document.createElement("div");
+  row.className = "summary-response-card";
+  row.innerHTML = `
+    <label class="summary-headline-field">
+      <textarea class="summary-item summary-headline-input" rows="1" maxlength="120" placeholder="글의 헤드라인을 써 주세요." autocomplete="off">${escapeHtml(value)}</textarea>
+    </label>
+    <article class="summary-reading-card">
+      ${summaryText ? escapeHtml(summaryText) : "아직 업로드된 글이 없습니다."}
+    </article>
+  `;
+  elements.summaryList.append(row);
+  resizeTextareas(row);
+}
+
 function closeConfirmModal() {
   const shouldReleasePresentationLock = modalMode === "teacher";
   modalMode = "student";
@@ -741,14 +850,18 @@ async function openStudentResults() {
   modalMode = "student-results";
   document.querySelector("#confirmModalTitle").textContent = currentStudentStep === "combined"
     ? "한 번에 작성 결과"
-    : `${teacherSteps[currentStudentStep].label} 결과`;
+    : currentStudentStep === "summary"
+      ? "헤드라인 결과"
+      : `${teacherSteps[currentStudentStep].label} 결과`;
   elements.modalBackButton.hidden = true;
   elements.modalSubmitButton.textContent = "닫기";
   elements.confirmModal.classList.remove("teacher-tools-locked");
   elements.confirmModal.classList.add("student-results-modal");
   elements.modalSentenceList.innerHTML = currentStudentStep === "combined"
     ? renderCombinedAnswers({ showDelete: false })
-    : renderCollectedAnswers(currentStudentStep, { showDelete: false });
+    : currentStudentStep === "summary"
+      ? renderSummaryAnswers({ showDelete: false })
+      : renderCollectedAnswers(currentStudentStep, { showDelete: false });
   elements.confirmModal.hidden = false;
   elements.modalSubmitButton.focus();
 }
@@ -785,6 +898,10 @@ function getCombinedInputValues() {
   };
 }
 
+function getSummaryInputValue() {
+  return elements.summaryList.querySelector(".summary-item")?.value.trim() || "";
+}
+
 function isCompleteCombinedItem(item) {
   return Boolean(item?.see && item?.think && item?.wonder);
 }
@@ -815,6 +932,14 @@ function clearCombinedInputs() {
   elements.combinedList.querySelectorAll("input").forEach((input) => {
     input.value = "";
   });
+  updateStudentSubmitState();
+}
+
+function clearSummaryInput() {
+  const input = elements.summaryList.querySelector(".summary-item");
+  if (!input) return;
+  input.value = "";
+  resizeTextarea(input);
   updateStudentSubmitState();
 }
 
@@ -854,6 +979,7 @@ function showStudentWaitingView() {
   currentStudentStep = "waiting";
   elements.roleView.hidden = true;
   elements.teacherStartView.hidden = true;
+  elements.teacherSummarySetupView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
@@ -868,6 +994,7 @@ function showStudentWaitingView() {
 function showStudentAnswerView(step) {
   elements.roleView.hidden = true;
   elements.teacherStartView.hidden = true;
+  elements.teacherSummarySetupView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentWaitingView.hidden = true;
@@ -949,6 +1076,7 @@ function resetAnswerLists() {
   elements.thinkList.innerHTML = "";
   elements.wonderList.innerHTML = "";
   elements.combinedList.innerHTML = "";
+  elements.summaryList.innerHTML = "";
 }
 
 function focusFirstSeeInput() {
@@ -967,12 +1095,17 @@ function focusFirstCombinedInput() {
   elements.combinedList.querySelector(".combined-see-item")?.focus();
 }
 
+function focusSummaryInput() {
+  elements.summaryList.querySelector(".summary-item")?.focus();
+}
+
 function focusCurrentStepInput() {
   const focusByStep = {
     see: focusFirstSeeInput,
     think: focusFirstThinkInput,
     wonder: focusFirstWonderInput,
     combined: focusFirstCombinedInput,
+    summary: focusSummaryInput,
   };
   focusByStep[currentStudentStep]?.();
 }
@@ -1035,6 +1168,7 @@ function startTeacherPolling() {
     await refreshActiveClassMode({ renderStudent: false });
     await refreshActiveClassStep({ renderStudent: false });
     await refreshClassImage();
+    await refreshSummaryText();
     refreshResponses();
   }, 2000);
 }
@@ -1052,6 +1186,7 @@ function startStudentStepPolling() {
       refreshActiveClassMode();
       refreshActiveClassStep();
       refreshClassImage();
+      refreshSummaryText();
       refreshPresentationLock();
     }
   }, 2000);
@@ -1094,6 +1229,19 @@ async function refreshActiveClassStep(options = {}) {
   if (!activeClassMode) {
     if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student" && currentStudentStep !== "waiting") {
       showStudentWaitingView();
+    }
+    return activeClassStep;
+  }
+
+  if (activeClassMode === "summary") {
+    await refreshSummaryText();
+    if (renderStudent && !elements.studentWaitingView.hidden) {
+      showStudentAnswerView("summary");
+      return activeClassStep;
+    }
+    if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student" && currentStudentStep !== "summary") {
+      showStudentStep("summary");
+      focusCurrentStepInput();
     }
     return activeClassStep;
   }
@@ -1188,6 +1336,134 @@ async function cancelClassImageUpload() {
   } catch {
     showToast("업로드를 취소하지 못했습니다.");
   }
+}
+
+async function uploadSummaryText(file) {
+  if (!file) return;
+
+  try {
+    const text = await readTextFile(file);
+    summaryText = text.trim();
+    if (elements.summaryTextInput) {
+      elements.summaryTextInput.value = summaryText;
+    }
+    renderSummaryTextStatus();
+    showToast("글을 업로드했습니다.");
+  } catch (error) {
+    showToast(error.message || "글을 업로드하지 못했습니다.");
+  } finally {
+    elements.summaryTextFileInput.value = "";
+  }
+}
+
+async function startSummaryClass() {
+  const nextText = elements.summaryTextInput?.value.trim() || "";
+  if (!nextText) {
+    showToast("수업에서 사용할 글을 넣어 주세요.");
+    elements.summaryTextInput?.focus();
+    return;
+  }
+
+  try {
+    summaryText = nextText;
+    await saveSummaryTextSetting(summaryText);
+    await saveActiveClassMode("summary");
+    await refreshResponses();
+    await showTeacherView("summary");
+    showToast("헤드라인을 시작했습니다.");
+  } catch {
+    showToast("헤드라인을 시작하지 못했습니다.");
+  }
+}
+
+async function refreshSummaryText() {
+  const previousText = summaryText;
+
+  try {
+    summaryText = await loadSummaryTextSetting();
+  } catch {
+    summaryText = previousText;
+  }
+
+  renderSummaryText();
+  return summaryText;
+}
+
+function renderSummaryText() {
+  if (elements.summaryTextInput && elements.summaryTextInput.value !== summaryText) {
+    elements.summaryTextInput.value = summaryText;
+  }
+  if (currentStudentStep === "summary") {
+    const readingCard = elements.summaryList.querySelector(".summary-reading-card");
+    if (readingCard) {
+      readingCard.textContent = summaryText || "아직 업로드된 글이 없습니다.";
+    } else {
+      renderSummaryRows();
+    }
+  }
+  renderSummaryTextStatus();
+}
+
+function renderSummaryTextStatus() {
+  if (!elements.summaryTextStatus) return;
+  elements.summaryTextStatus.textContent = (elements.summaryTextInput?.value.trim() || summaryText)
+    ? "업로드 완료"
+    : "글을 업로드해 주세요.";
+}
+
+async function loadSummaryTextSetting() {
+  if (!isSupabaseReady()) {
+    return summaryText;
+  }
+
+  const rows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(summaryTextSettingId)}&select=value&limit=1`
+  );
+  return rows[0]?.value || "";
+}
+
+async function saveSummaryTextSetting(value) {
+  if (!isSupabaseReady()) {
+    return;
+  }
+
+  const payload = {
+    id: summaryTextSettingId,
+    value,
+    updated_at: new Date().toISOString(),
+  };
+
+  const existingRows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(summaryTextSettingId)}&select=id&limit=1`
+  );
+
+  if (existingRows[0]) {
+    await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(summaryTextSettingId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    return;
+  }
+
+  await supabaseRequest(`/${supabaseSettingsTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
+}
+
+function readTextFile(file) {
+  if (file.type && !file.type.startsWith("text/")) {
+    throw new Error("텍스트 파일만 업로드할 수 있습니다.");
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
+    reader.addEventListener("error", () => reject(new Error("글을 읽지 못했습니다.")), { once: true });
+    reader.readAsText(file, "utf-8");
+  });
 }
 
 async function refreshPresentationLock() {
@@ -1617,6 +1893,7 @@ async function insertCombinedResponse(studentName, values) {
     think: [],
     wonder: [],
     combined: values,
+    summary: [],
     createdAt: new Date().toISOString(),
   };
   const rows = await supabaseRequest(`/${supabaseTable}`, {
@@ -1640,6 +1917,7 @@ async function insertStepResponse(studentName, step, values) {
     think: step === "think" ? values : [],
     wonder: step === "wonder" ? values : [],
     combined: [],
+    summary: step === "summary" ? values : [],
     createdAt: new Date().toISOString(),
   };
   const rows = await supabaseRequest(`/${supabaseTable}`, {
@@ -1797,6 +2075,7 @@ function toSupabaseRow(response) {
     think: response.think,
     wonder: response.wonder,
     combined: response.combined || [],
+    summary: response.summary || [],
     created_at: response.createdAt,
   };
 }
@@ -1809,6 +2088,7 @@ function fromSupabaseRow(row) {
     think: normalizeList(row.think),
     wonder: normalizeList(row.wonder),
     combined: normalizeCombinedList(row.combined),
+    summary: normalizeList(row.summary),
     createdAt: row.created_at,
   };
 }
@@ -1831,7 +2111,7 @@ function renderResponses() {
     elements.teacherTopTabs.append(renderTeacherTabs());
   }
   elements.responseList.innerHTML = "";
-  elements.responseList.append(renderTeacherDashboard());
+  elements.responseList.append(activeClassMode === "summary" ? renderSummaryDashboard() : renderTeacherDashboard());
 }
 
 function renderTeacherDashboard() {
@@ -1841,6 +2121,47 @@ function renderTeacherDashboard() {
   dashboard.append(renderTeacherClassImagePanel());
   dashboard.append(renderTeacherDashboardBody());
   return dashboard;
+}
+
+function renderSummaryDashboard() {
+  const dashboard = document.createElement("section");
+  dashboard.className = "teacher-dashboard is-summary";
+  dashboard.append(renderSummaryTextPanel(), renderSummaryResultPanel());
+  return dashboard;
+}
+
+function renderSummaryTextPanel() {
+  const panel = document.createElement("section");
+  panel.className = "teacher-dashboard-panel summary-text-panel";
+  panel.innerHTML = `
+    <h2>수업 글</h2>
+    <div class="summary-reading-text">${summaryText ? escapeHtml(summaryText) : "업로드된 글이 없습니다."}</div>
+  `;
+  return panel;
+}
+
+function renderSummaryResultPanel() {
+  const panel = document.createElement("section");
+  panel.className = "teacher-dashboard-panel summary-result-panel";
+  panel.innerHTML = `
+    <h2>번호별 결과</h2>
+    <div class="teacher-student-grid summary-student-grid">
+      ${Array.from({ length: studentCount }, (_, index) => {
+        const studentName = `${index + 1}번`;
+        const submitted = hasSubmittedStep(getResponseByStudentName(studentName), "summary");
+        return `
+        <button class="teacher-student-button ${submitted ? "is-submitted" : "is-empty"}" type="button" data-summary-student="${index + 1}" ${submitted ? "" : "disabled"}>
+          <span>${index + 1}</span>
+        </button>`;
+      }).join("")}
+    </div>
+  `;
+  panel.querySelectorAll("[data-summary-student]:not(:disabled)").forEach((button) => {
+    button.addEventListener("click", () => {
+      openTeacherSummaryStudentModal(`${button.dataset.summaryStudent}번`);
+    });
+  });
+  return panel;
 }
 
 function renderTeacherClassImagePanel() {
@@ -2339,6 +2660,38 @@ function renderCombinedAnswers(options = {}) {
   `;
 }
 
+function renderSummaryAnswers(options = {}) {
+  const { showDelete = true } = options;
+  const cards = getCollectedSummaryAnswers();
+  if (cards.length === 0) {
+    return `<div class="teacher-step-empty">미제출</div>`;
+  }
+
+  return `
+    <div class="teacher-postit-grid summary-postit-grid" aria-label="헤드라인 전체 답변">
+      ${cards
+        .map((card, index) => `
+          <article class="postit-card ${card.cardClass} answer-${(index % answerAccentCount) + 1}" tabindex="0" role="button" data-student-name="${escapeAttribute(card.studentName)}" aria-label="${escapeAttribute(card.studentName)} 답변">
+            ${showDelete ? `<button
+              class="postit-delete-button"
+              type="button"
+              data-delete-answer
+              data-response-id="${escapeAttribute(card.responseId)}"
+              data-answer-step="summary"
+              data-answer-index="${card.answerIndex}"
+              aria-label="답변 지우기"
+              title="지우기"
+            >
+              X
+            </button>` : ""}
+            <div class="postit-content"><p>${escapeHtml(card.value)}</p></div>
+          </article>
+        `)
+        .join("")}
+    </div>
+  `;
+}
+
 function getCollectedCombinedAnswers() {
   return getSubmittedStudentResponses()
     .flatMap((response) =>
@@ -2347,6 +2700,19 @@ function getCollectedCombinedAnswers() {
         studentName: response.name,
         answerIndex,
         value,
+      }))
+    );
+}
+
+function getCollectedSummaryAnswers() {
+  return getSubmittedStudentResponses()
+    .flatMap((response) =>
+      normalizeList(response.summary).filter(Boolean).map((value, answerIndex) => ({
+        responseId: response.id,
+        studentName: response.name,
+        answerIndex,
+        value,
+        cardClass: getPostitLengthClass(value),
       }))
     );
 }
@@ -2500,6 +2866,48 @@ function openTeacherCombinedStudentModal(studentName, selectedAnswerIndex = null
   elements.modalSubmitButton.focus();
 }
 
+function openTeacherSummaryStudentModal(studentName, selectedAnswerIndex = null) {
+  const response = getResponseByStudentName(studentName);
+  if (!response) return;
+
+  savePresentationLockSetting(true).catch(() => {
+    showToast("발표 집중 모드를 켜지 못했습니다.");
+  });
+  modalMode = "teacher";
+  document.querySelector("#confirmModalTitle").textContent = studentName;
+  elements.modalBackButton.hidden = true;
+  elements.modalSubmitButton.textContent = "닫기";
+  elements.confirmModal.classList.add("teacher-answer-modal");
+  elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
+  elements.modalSentenceList.innerHTML = `
+    <section class="teacher-response-set teacher-response-single">
+      <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(response.id)}" aria-label="학생 답변 비우기" title="비우기">
+        삭제
+      </button>
+      <div class="teacher-modal-answer">
+        ${renderValueCards(response.summary, "summary", (value) => `<p><span class="sentence-block summary-block">${escapeHtml(value)}</span></p>`, selectedAnswerIndex)}
+      </div>
+    </section>
+  `;
+
+  elements.modalSentenceList.querySelector("[data-delete-response]")?.addEventListener("click", async (event) => {
+    const responseId = event.currentTarget.dataset.deleteResponse;
+    if (!responseId || !window.confirm(`${studentName}의 답변을 모두 비울까요?`)) return;
+
+    try {
+      await deleteResponse(responseId);
+      renderResponses();
+      closeConfirmModal();
+      showToast("비웠습니다.");
+    } catch {
+      showToast("답변을 비우지 못했습니다.");
+    }
+  });
+
+  elements.confirmModal.hidden = false;
+  elements.modalSubmitButton.focus();
+}
+
 function renderTeacherModalClassImage() {
   if (!classImageDataUrl) return "";
 
@@ -2567,16 +2975,18 @@ function renderStepResponse(item, step, selectedAnswerIndex = null) {
 }
 
 function renderValueCards(values, step, contentBuilder, selectedAnswerIndex = null) {
+  const stepLabel = teacherSteps[step]?.label || "헤드라인";
+  const emptyLabel = teacherSteps[step]?.empty || "미제출";
   const submittedValues = normalizeList(values)
     .map((value, index) => ({ value, index }))
     .filter((item) => item.value)
     .filter((item) => selectedAnswerIndex === null || item.index === selectedAnswerIndex);
   if (submittedValues.length === 0) {
-    return `<div class="teacher-step-empty">${teacherSteps[step].empty}</div>`;
+    return `<div class="teacher-step-empty">${emptyLabel}</div>`;
   }
 
   return `
-    <div class="teacher-sentence-list" aria-label="${teacherSteps[step].label} 결과">
+    <div class="teacher-sentence-list" aria-label="${stepLabel} 결과">
       ${submittedValues
         .map(({ value, index }) => `
           <article class="sentence-card answer-${index + 1}">
