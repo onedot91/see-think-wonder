@@ -13,7 +13,6 @@ const teacherRoleValue = "teacher";
 const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
 const studentCount = 23;
 const answerAccentCount = 3;
-const classImageAspectRatio = 4 / 3;
 const classImageMaxWidth = 1600;
 const classImageJpegQuality = 0.9;
 const classModes = {
@@ -1280,7 +1279,7 @@ function renderClassImage() {
   }
 
   if (elements.classImageStatus) {
-    elements.classImageStatus.textContent = hasImage ? "업로드 완료" : "4:3 사진을 업로드해 주세요.";
+    elements.classImageStatus.textContent = hasImage ? "업로드 완료" : "사진을 업로드해 주세요.";
   }
 
   if (elements.classImageCancelButton) {
@@ -1357,13 +1356,8 @@ async function prepareClassImage(file) {
   }
 
   const image = await loadImageFromFile(file);
-  const ratio = image.naturalWidth / image.naturalHeight;
-  if (Math.abs(ratio - classImageAspectRatio) > 0.03) {
-    throw new Error("4:3 비율의 사진을 업로드해 주세요.");
-  }
-
   const width = Math.min(classImageMaxWidth, image.naturalWidth);
-  const height = Math.round(width / classImageAspectRatio);
+  const height = Math.round(width * (image.naturalHeight / image.naturalWidth));
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
