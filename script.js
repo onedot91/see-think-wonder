@@ -6,6 +6,7 @@ const activeStepSettingId = "active_step";
 const activeModeSettingId = "active_mode";
 const classImageSettingId = "class_image";
 const presentationLockSettingId = "presentation_lock";
+const responseClearCutoffSettingId = "response_clear_cutoff";
 const savedStudentNumberKey = "stw_student_number";
 const savedRoleKey = "stw_role";
 const teacherRoleValue = "teacher";
@@ -82,6 +83,7 @@ let activeClassStep = "see";
 let activeClassMode = null;
 let classImageDataUrl = "";
 let activePresentationLock = false;
+let responseClearCutoff = "";
 let modalMode = "student";
 let teacherPollId = null;
 let studentStepPollId = null;
@@ -1071,8 +1073,9 @@ async function loadResponses() {
     throw new Error("Supabase is not configured");
   }
 
+  responseClearCutoff = await loadResponseClearCutoffSetting();
   const rows = await supabaseRequest(`/${supabaseTable}?select=*&order=created_at.asc`);
-  return rows.map(fromSupabaseRow);
+  return rows.map(fromSupabaseRow).filter(isAfterResponseClearCutoff);
 }
 
 async function refreshActiveClassStep(options = {}) {
@@ -1508,6 +1511,48 @@ async function refreshResponsesCache() {
   responses = await loadResponses();
 }
 
+async function loadResponseClearCutoffSetting() {
+  if (!isSupabaseReady()) {
+    return responseClearCutoff;
+  }
+
+  const rows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(responseClearCutoffSettingId)}&select=value&limit=1`
+  );
+  return rows[0]?.value || "";
+}
+
+async function saveResponseClearCutoffSetting(value) {
+  if (!isSupabaseReady()) {
+    return;
+  }
+
+  const payload = {
+    id: responseClearCutoffSettingId,
+    value,
+    updated_at: new Date().toISOString(),
+  };
+
+  const existingRows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(responseClearCutoffSettingId)}&select=id&limit=1`
+  );
+
+  if (existingRows[0]) {
+    await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(responseClearCutoffSettingId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    return;
+  }
+
+  await supabaseRequest(`/${supabaseSettingsTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
+}
+
 async function saveCombinedStep(values) {
   if (!isSupabaseReady()) {
     throw new Error("Supabase is not configured");
@@ -1643,6 +1688,9 @@ async function clearResponses() {
     throw new Error("Supabase is not configured");
   }
 
+  const cutoff = new Date().toISOString();
+  await saveResponseClearCutoffSetting(cutoff);
+  responseClearCutoff = cutoff;
   await supabaseRequest(`/${supabaseTable}?id=not.is.null`, { method: "DELETE" });
   responses = [];
 }
@@ -1769,6 +1817,14 @@ function fromSupabaseRow(row) {
     combined: normalizeCombinedList(row.combined),
     createdAt: row.created_at,
   };
+}
+
+function isAfterResponseClearCutoff(response) {
+  if (!responseClearCutoff) return true;
+  const responseTime = Date.parse(response?.createdAt || "");
+  const cutoffTime = Date.parse(responseClearCutoff);
+  if (!Number.isFinite(responseTime) || !Number.isFinite(cutoffTime)) return true;
+  return responseTime > cutoffTime;
 }
 
 function renderResponses() {
