@@ -351,6 +351,9 @@ textarea::placeholder {
   margin: 0 auto 1.45em;
   text-indent: 1em;
   line-height: 1.86;
+  text-align: justify;
+  text-justify: inter-character;
+  text-align-last: left;
 }
 
 .teacher-summary-text-input .summary-reading-paragraph:last-child,
@@ -874,6 +877,9 @@ textarea {
   max-width: 30em;
   margin: 0 auto 1.45em;
   text-indent: 1em;
+  text-align: justify;
+  text-justify: inter-character;
+  text-align-last: left;
 }
 
 .summary-reading-paragraph:last-child {
