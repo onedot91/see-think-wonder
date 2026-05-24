@@ -1564,6 +1564,22 @@ button {
   background: var(--block-cream);
 }
 
+.summary-text-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.summary-expand-button {
+  min-width: 118px;
+  min-height: 54px;
+  padding: 8px 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 1.25rem;
+}
+
 .summary-reading-text {
   min-height: 180px;
   max-height: 36vh;
@@ -2134,6 +2150,79 @@ button {
   color: #000000;
   font-size: 1.35rem;
   cursor: pointer;
+}
+
+.text-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.text-lightbox[hidden] {
+  display: none;
+}
+
+.text-lightbox-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 18px;
+  width: min(1320px, 94vw);
+  height: min(860px, 90vh);
+  padding: 28px;
+  border: 3px solid #000000;
+  border-radius: 24px;
+  background: var(--block-cream);
+}
+
+.text-lightbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.text-lightbox-head h2 {
+  margin: 0;
+  font-size: clamp(2.4rem, 4vw, 4.2rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.text-lightbox-close {
+  min-width: 112px;
+  min-height: 58px;
+  padding: 8px 20px;
+  border: 2px solid #000000;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #000000;
+  font-size: 1.35rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.text-lightbox-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 48px 58px;
+  border: 2px solid #000000;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #000000;
+  font-family: "Noto Serif KR", "Nanum Myeongjo", "Batang", "Times New Roman", serif;
+  font-size: clamp(1.9rem, 3.2vw, 3rem);
+  font-weight: 800;
+  line-height: 1.9;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.text-lightbox-body .summary-reading-paragraph {
+  max-width: 28em;
 }
 
 .student-focus-modal {

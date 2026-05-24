@@ -65,6 +65,9 @@ const elements = {
   classImageLightbox: document.querySelector("#classImageLightbox"),
   classImageLightboxImage: document.querySelector("#classImageLightboxImage"),
   classImageLightboxClose: document.querySelector("#classImageLightboxClose"),
+  summaryTextLightbox: document.querySelector("#summaryTextLightbox"),
+  summaryTextLightboxBody: document.querySelector("#summaryTextLightboxBody"),
+  summaryTextLightboxClose: document.querySelector("#summaryTextLightboxClose"),
   studentFocusModal: document.querySelector("#studentFocusModal"),
   groupButtons: document.querySelector("#groupButtons"),
   studentNumberInput: document.querySelector("#studentNumberInput"),
@@ -225,6 +228,16 @@ elements.classImageLightbox?.addEventListener("click", (event) => {
   }
 });
 
+elements.summaryTextLightboxClose?.addEventListener("click", () => {
+  closeSummaryTextLightbox();
+});
+
+elements.summaryTextLightbox?.addEventListener("click", (event) => {
+  if (event.target === elements.summaryTextLightbox) {
+    closeSummaryTextLightbox();
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (isReturnToStartShortcut(event)) {
     event.preventDefault();
@@ -236,6 +249,10 @@ document.addEventListener("keydown", (event) => {
 
   if (event.key === "Escape" && elements.classImageLightbox && !elements.classImageLightbox.hidden) {
     closeClassImageLightbox();
+  }
+
+  if (event.key === "Escape" && elements.summaryTextLightbox && !elements.summaryTextLightbox.hidden) {
+    closeSummaryTextLightbox();
   }
 }, { capture: true });
 
@@ -418,6 +435,7 @@ function showRoleView() {
   stopStudentStepPolling();
   closeConfirmModal();
   closeClassImageLightbox();
+  closeSummaryTextLightbox();
   elements.roleView.hidden = false;
   elements.teacherStartView.hidden = true;
   elements.teacherSummarySetupView.hidden = true;
@@ -438,6 +456,7 @@ async function showTeacherStartView() {
   stopStudentStepPolling();
   closeConfirmModal();
   closeClassImageLightbox();
+  closeSummaryTextLightbox();
   savePresentationLockSetting(false).catch(() => {});
   await setClassWaitingMode();
   elements.roleView.hidden = true;
@@ -455,6 +474,7 @@ async function showTeacherSummarySetupView() {
   stopStudentStepPolling();
   closeConfirmModal();
   closeClassImageLightbox();
+  closeSummaryTextLightbox();
   savePresentationLockSetting(false).catch(() => {});
   await setClassWaitingMode();
   await refreshSummaryText();
@@ -473,6 +493,7 @@ async function showTeacherModeView() {
   stopTeacherPolling();
   stopStudentStepPolling();
   closeConfirmModal();
+  closeSummaryTextLightbox();
   savePresentationLockSetting(false).catch(() => {});
   await setClassWaitingMode();
   refreshClassImage();
@@ -856,6 +877,21 @@ function closeClassImageLightbox() {
   if (!elements.studentClassImageCard?.hidden) {
     elements.studentClassImageCard.focus();
   }
+}
+
+function openSummaryTextLightbox() {
+  if (!elements.summaryTextLightbox || !elements.summaryTextLightboxBody) return;
+
+  elements.summaryTextLightboxBody.innerHTML = renderSummaryReadingText(summaryText, { emptyText: "등록된 글이 없습니다." });
+  elements.summaryTextLightbox.hidden = false;
+  elements.summaryTextLightboxClose?.focus();
+}
+
+function closeSummaryTextLightbox() {
+  if (!elements.summaryTextLightbox || !elements.summaryTextLightboxBody) return;
+
+  elements.summaryTextLightbox.hidden = true;
+  elements.summaryTextLightboxBody.innerHTML = "";
 }
 
 async function openStudentResults() {
@@ -2476,9 +2512,13 @@ function renderSummaryTextPanel() {
   const panel = document.createElement("section");
   panel.className = "teacher-dashboard-panel summary-text-panel";
   panel.innerHTML = `
-    <h2>수업 글</h2>
+    <div class="summary-text-panel-head">
+      <h2>수업 글</h2>
+      <button class="secondary-button summary-expand-button" type="button" data-summary-expand>확대</button>
+    </div>
     <div class="summary-reading-text">${renderSummaryReadingText(summaryText)}</div>
   `;
+  panel.querySelector("[data-summary-expand]")?.addEventListener("click", openSummaryTextLightbox);
   return panel;
 }
 
