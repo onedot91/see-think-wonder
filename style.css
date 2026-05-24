@@ -684,6 +684,19 @@ textarea {
   word-break: keep-all;
 }
 
+.combined-inline-value {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  padding: 8px 18px;
+  border: 2px solid #000000;
+  border-radius: 12px;
+  font: inherit;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
 .combined-inline-input:not(:placeholder-shown) {
   background: var(--block-lime);
 }
@@ -1316,6 +1329,10 @@ button {
   align-items: stretch;
 }
 
+.combined-postit-grid {
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+}
+
 .postit-card {
   position: relative;
   display: grid;
@@ -1324,12 +1341,21 @@ button {
   padding: 22px 26px 18px 20px;
   border: 2px solid #000000;
   border-radius: 14px;
-  background: var(--block-mint);
+  background: #ffffff;
   transform-origin: 50% 50%;
   transition:
     opacity 200ms ease,
     transform 200ms ease,
     filter 200ms ease;
+}
+
+.postit-card[role="button"] {
+  cursor: pointer;
+}
+
+.postit-card:focus-visible {
+  outline: 4px solid rgba(0, 0, 0, 0.18);
+  outline-offset: 3px;
 }
 
 .postit-card.is-removing {
@@ -1376,15 +1402,14 @@ button {
 }
 
 .teacher-dashboard.is-think .postit-card {
-  background: var(--block-lilac);
+  background: #ffffff;
 }
 
 .teacher-dashboard.is-wonder .postit-card {
-  background: var(--block-cream);
+  background: #ffffff;
 }
 
-.teacher-dashboard.is-combined .teacher-student-button.is-submitted,
-.teacher-dashboard.is-combined .postit-card {
+.teacher-dashboard.is-combined .teacher-student-button.is-submitted {
   background: var(--block-lime);
 }
 
@@ -1421,6 +1446,77 @@ button {
   -webkit-line-clamp: 3;
 }
 
+.combined-card-content p {
+  display: block;
+  font-size: clamp(1.15rem, 1.45vw, 1.5rem);
+  line-height: 1.45;
+  overflow: visible;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: initial;
+}
+
+.combined-sentence {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.combined-card-content .combined-sentence {
+  gap: 6px;
+}
+
+.combined-fixed-text {
+  white-space: normal;
+}
+
+.combined-phrase {
+  display: inline;
+}
+
+.combined-card-content .sentence-block {
+  display: inline;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+  word-break: inherit;
+  overflow-wrap: inherit;
+}
+
+.combined-sentence .sentence-block {
+  display: inline;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+  word-break: inherit;
+  overflow-wrap: inherit;
+}
+
+.combined-sentence .sentence-block.see-block {
+  background: transparent;
+  color: #12633d;
+}
+
+.combined-sentence .sentence-block.think-block {
+  background: transparent;
+  color: #5542a8;
+}
+
+.combined-sentence .sentence-block.wonder-block {
+  background: transparent;
+  color: #7a5510;
+}
+
 .teacher-response-set {
   display: grid;
   position: relative;
@@ -1447,6 +1543,10 @@ button {
   font-size: 1.25rem;
   font-weight: 900;
   line-height: 1;
+}
+
+.teacher-response-single::before {
+  display: none;
 }
 
 .icon-delete-button,
@@ -1642,6 +1742,19 @@ button {
 
 .sentence-lines strong {
   color: var(--muted);
+}
+
+.sentence-lines .combined-sentence {
+  gap: 12px;
+}
+
+.sentence-lines .combined-sentence p {
+  display: block;
+  font-size: clamp(1.8rem, 3vw, 2.7rem);
+  font-weight: 900;
+  line-height: 1.28;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .sentence-block {

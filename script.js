@@ -280,10 +280,12 @@ async function showTeacherModeView() {
   stopStudentStepPolling();
   closeConfirmModal();
   activeClassMode = null;
-  try {
-    await saveClassModeSetting("waiting");
-  } catch {
-    showToast("대기 상태를 저장하지 못했습니다.");
+  if (isSupabaseReady()) {
+    try {
+      await saveClassModeSetting("waiting");
+    } catch {
+      showToast("대기 상태를 저장하지 못했습니다.");
+    }
   }
   elements.roleView.hidden = true;
   elements.teacherModeView.hidden = false;
@@ -316,6 +318,7 @@ async function showTeacherView(selectedMode = null) {
 function showStudentView() {
   stopTeacherPolling();
   resetStudentForm();
+  activeClassMode = null;
   elements.roleView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
@@ -434,7 +437,7 @@ function goToNextStudentStep() {
   submitCurrentStudentStep();
 }
 
-function goFromStudentToSee() {
+async function goFromStudentToSee() {
   const studentNumber = normalizeStudentNumber(elements.studentNumberInput.value);
   if (!studentNumber) {
     showToast("1번부터 23번까지 입력해 주세요.");
@@ -442,7 +445,8 @@ function goFromStudentToSee() {
   }
 
   selectedStudentNumber = String(studentNumber);
-  loadSelectedStudentResponse();
+  await refreshActiveClassMode({ renderStudent: false });
+  await loadSelectedStudentResponse();
   showStudentStep(getStudentEntryStep());
   focusCurrentStepInput();
 }
@@ -669,6 +673,11 @@ async function initResponses() {
 }
 
 async function refreshResponses() {
+  if (!isSupabaseReady()) {
+    renderResponses();
+    return;
+  }
+
   try {
     responses = await loadResponses();
     updateBackendStatus("online", "DB 연결됨");
@@ -825,6 +834,9 @@ async function loadActiveClassMode() {
     `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(activeModeSettingId)}&select=value&limit=1`
   );
   const mode = rows[0]?.value;
+  if (mode === "waiting") {
+    return null;
+  }
   return isClassMode(mode) ? mode : null;
 }
 
@@ -833,7 +845,7 @@ async function saveActiveClassStep(step) {
   activeClassStep = step;
 
   if (!isSupabaseReady()) {
-    throw new Error("Supabase is not configured");
+    return;
   }
 
   const payload = {
@@ -871,7 +883,7 @@ async function saveActiveClassMode(mode) {
 
 async function saveClassModeSetting(value) {
   if (!isSupabaseReady()) {
-    throw new Error("Supabase is not configured");
+    return;
   }
 
   const payload = {
@@ -1252,6 +1264,30 @@ function renderCollectedAnswersPanel() {
       }
     });
   });
+  panel.querySelectorAll("[data-student-name]").forEach((card) => {
+    const openStudentResponse = () => {
+      const studentName = card.dataset.studentName;
+      if (!studentName) return;
+
+      if (activeClassMode === "combined") {
+        const answerIndex = Number(card.querySelector("[data-delete-combined]")?.dataset.answerIndex);
+        openTeacherCombinedStudentModal(studentName, Number.isInteger(answerIndex) ? answerIndex : null);
+      } else {
+        const answerIndex = Number(card.querySelector("[data-delete-answer]")?.dataset.answerIndex);
+        openTeacherStudentModal(studentName, activeTeacherStep, Number.isInteger(answerIndex) ? answerIndex : null);
+      }
+    };
+
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      openStudentResponse();
+    });
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openStudentResponse();
+    });
+  });
   return panel;
 }
 
@@ -1373,7 +1409,7 @@ function renderCollectedAnswers(step, options = {}) {
     <div class="teacher-postit-grid" aria-label="${teacherSteps[step].label} 전체 답변">
       ${cards
         .map((card, index) => `
-          <article class="postit-card answer-${(index % answerAccentCount) + 1}">
+          <article class="postit-card answer-${(index % answerAccentCount) + 1}" tabindex="0" role="button" data-student-name="${escapeAttribute(card.studentName)}" aria-label="${escapeAttribute(card.studentName)} 답변">
             ${showDelete ? `<button
               class="postit-delete-button"
               type="button"
@@ -1405,7 +1441,7 @@ function renderCombinedAnswers(options = {}) {
     <div class="teacher-postit-grid combined-postit-grid" aria-label="한 번에 작성 전체 답변">
       ${cards
         .map((card, index) => `
-          <article class="postit-card combined-postit-card answer-${(index % answerAccentCount) + 1}">
+          <article class="postit-card combined-postit-card answer-${(index % answerAccentCount) + 1}" tabindex="0" role="button" data-student-name="${escapeAttribute(card.studentName)}" aria-label="${escapeAttribute(card.studentName)} 답변">
             ${showDelete ? `<button
               class="postit-delete-button"
               type="button"
@@ -1431,6 +1467,7 @@ function getCollectedCombinedAnswers() {
     .flatMap((response) =>
       normalizeCombinedList(response.combined).map((value, answerIndex) => ({
         responseId: response.id,
+        studentName: response.name,
         answerIndex,
         value,
       }))
@@ -1439,9 +1476,24 @@ function getCollectedCombinedAnswers() {
 
 function renderCombinedSentence(item) {
   return `
-    <p>저는 <strong>${escapeHtml(item.see)}</strong>을/를 보고,</p>
-    <p><strong>${escapeHtml(item.think)}</strong>라고 생각합니다.</p>
-    <p>그래서 <strong>${escapeHtml(item.wonder)}</strong>가 궁금합니다.</p>
+    <div class="combined-sentence">
+      <p>
+        <span class="combined-fixed-text">저는</span>
+        <span class="combined-phrase">
+          <span class="sentence-block see-block">${escapeHtml(item.see)}</span>
+          <span class="combined-fixed-text">을/를 보고,</span>
+        </span>
+        <span class="combined-phrase">
+          <span class="sentence-block think-block">${escapeHtml(item.think)}</span>
+          <span class="combined-fixed-text">라고 생각합니다.</span>
+        </span>
+        <span class="combined-fixed-text">그래서</span>
+        <span class="combined-phrase">
+          <span class="sentence-block wonder-block">${escapeHtml(item.wonder)}</span>
+          <span class="combined-fixed-text">가 궁금합니다.</span>
+        </span>
+      </p>
+    </div>
   `;
 }
 
@@ -1457,6 +1509,7 @@ function buildCollectedStepCards(response, step) {
   const wonderItems = normalizeList(response.wonder);
   const buildCard = (value, answerIndex, blockClass) => ({
     responseId: response.id,
+    studentName: response.name,
     step,
     answerIndex,
     compact: `<p>${escapeHtml(value)}</p>`,
@@ -1474,21 +1527,21 @@ function buildCollectedStepCards(response, step) {
   return wonderItems.map((value, index) => ({ value, index })).filter((item) => item.value).map((item) => buildCard(item.value, item.index, "wonder-block"));
 }
 
-function openTeacherStudentModal(studentName, step) {
+function openTeacherStudentModal(studentName, step, selectedAnswerIndex = null) {
   const response = getResponseByStudentName(studentName);
   if (!response) return;
 
   modalMode = "teacher";
-  document.querySelector("#confirmModalTitle").textContent = `${studentName} ${teacherSteps[step].label}`;
+  document.querySelector("#confirmModalTitle").textContent = studentName;
   elements.modalBackButton.hidden = true;
   elements.modalSubmitButton.textContent = "닫기";
   elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
   elements.modalSentenceList.innerHTML = `
-    <section class="teacher-response-set">
+    <section class="teacher-response-set teacher-response-single">
       <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(response.id)}" aria-label="학생 답변 비우기" title="비우기">
         삭제
       </button>
-      ${renderStepResponse(response, step)}
+      ${renderStepResponse(response, step, selectedAnswerIndex)}
     </section>
   `;
 
@@ -1510,21 +1563,21 @@ function openTeacherStudentModal(studentName, step) {
   elements.modalSubmitButton.focus();
 }
 
-function openTeacherCombinedStudentModal(studentName) {
+function openTeacherCombinedStudentModal(studentName, selectedAnswerIndex = null) {
   const response = getResponseByStudentName(studentName);
   if (!response) return;
 
   modalMode = "teacher";
-  document.querySelector("#confirmModalTitle").textContent = `${studentName} 한 번에 작성`;
+  document.querySelector("#confirmModalTitle").textContent = studentName;
   elements.modalBackButton.hidden = true;
   elements.modalSubmitButton.textContent = "닫기";
   elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
   elements.modalSentenceList.innerHTML = `
-    <section class="teacher-response-set">
+    <section class="teacher-response-set teacher-response-single">
       <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(response.id)}" aria-label="학생 답변 비우기" title="비우기">
         삭제
       </button>
-      ${renderCombinedValueCards(response.combined)}
+      ${renderCombinedValueCards(response.combined, selectedAnswerIndex)}
     </section>
   `;
 
@@ -1546,8 +1599,10 @@ function openTeacherCombinedStudentModal(studentName) {
   elements.modalSubmitButton.focus();
 }
 
-function renderCombinedValueCards(values) {
-  const submittedValues = normalizeCombinedList(values);
+function renderCombinedValueCards(values, selectedAnswerIndex = null) {
+  const submittedValues = normalizeCombinedList(values)
+    .map((value, index) => ({ value, index }))
+    .filter((item) => selectedAnswerIndex === null || item.index === selectedAnswerIndex);
   if (submittedValues.length === 0) {
     return `<div class="teacher-step-empty">미제출</div>`;
   }
@@ -1555,10 +1610,9 @@ function renderCombinedValueCards(values) {
   return `
     <div class="teacher-sentence-list" aria-label="한 번에 작성 결과">
       ${submittedValues
-        .map((value, index) => `
-          <article class="sentence-card answer-${index + 1}">
-            <span class="card-number">${index + 1}</span>
-            <div class="sentence-lines">${renderCombinedSentence(value)}</div>
+        .map(({ value, index }) => `
+          <article class="combined-response-card combined-readonly-card answer-${index + 1}">
+            ${renderReadonlyCombinedSentence(value)}
           </article>
         `)
         .join("")}
@@ -1566,24 +1620,46 @@ function renderCombinedValueCards(values) {
   `;
 }
 
-function renderStepResponse(item, step) {
+function renderReadonlyCombinedSentence(item) {
+  return `
+    <p>
+      <span>저는</span>
+      <span class="combined-inline-value combined-see-item">${escapeHtml(item.see)}</span>
+      <span>을/를 보고,</span>
+    </p>
+    <p>
+      <span class="combined-inline-value combined-think-item">${escapeHtml(item.think)}</span>
+      <span>라고 생각합니다.</span>
+    </p>
+    <p>
+      <span>그래서</span>
+      <span class="combined-inline-value combined-wonder-item">${escapeHtml(item.wonder)}</span>
+      <span>가 궁금합니다.</span>
+    </p>
+  `;
+}
+
+function renderStepResponse(item, step, selectedAnswerIndex = null) {
   const seeItems = normalizeList(item.see);
   const thinkItems = normalizeList(item.think);
   const wonderItems = normalizeList(item.wonder);
 
   if (step === "see") {
-    return renderValueCards(seeItems, "see", (value) => `<p><span class="sentence-block see-block">${escapeHtml(value)}</span></p>`);
+    return renderValueCards(seeItems, "see", (value) => `<p><span class="sentence-block see-block">${escapeHtml(value)}</span></p>`, selectedAnswerIndex);
   }
 
   if (step === "think") {
-    return renderValueCards(thinkItems, "think", (value) => `<p><span class="sentence-block think-block">${escapeHtml(value)}</span></p>`);
+    return renderValueCards(thinkItems, "think", (value) => `<p><span class="sentence-block think-block">${escapeHtml(value)}</span></p>`, selectedAnswerIndex);
   }
 
-  return renderValueCards(wonderItems, "wonder", (value) => `<p><span class="sentence-block wonder-block">${escapeHtml(value)}</span></p>`);
+  return renderValueCards(wonderItems, "wonder", (value) => `<p><span class="sentence-block wonder-block">${escapeHtml(value)}</span></p>`, selectedAnswerIndex);
 }
 
-function renderValueCards(values, step, contentBuilder) {
-  const submittedValues = normalizeList(values).filter(Boolean);
+function renderValueCards(values, step, contentBuilder, selectedAnswerIndex = null) {
+  const submittedValues = normalizeList(values)
+    .map((value, index) => ({ value, index }))
+    .filter((item) => item.value)
+    .filter((item) => selectedAnswerIndex === null || item.index === selectedAnswerIndex);
   if (submittedValues.length === 0) {
     return `<div class="teacher-step-empty">${teacherSteps[step].empty}</div>`;
   }
@@ -1591,7 +1667,7 @@ function renderValueCards(values, step, contentBuilder) {
   return `
     <div class="teacher-sentence-list" aria-label="${teacherSteps[step].label} 결과">
       ${submittedValues
-        .map((value, index) => `
+        .map(({ value, index }) => `
           <article class="sentence-card answer-${index + 1}">
             <span class="card-number">${index + 1}</span>
             <div class="sentence-lines">${contentBuilder(value, index)}</div>
