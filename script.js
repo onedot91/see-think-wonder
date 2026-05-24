@@ -7,6 +7,8 @@ const activeModeSettingId = "active_mode";
 const classImageSettingId = "class_image";
 const presentationLockSettingId = "presentation_lock";
 const savedStudentNumberKey = "stw_student_number";
+const savedRoleKey = "stw_role";
+const teacherRoleValue = "teacher";
 const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
 const studentCount = 23;
 const answerAccentCount = 3;
@@ -88,7 +90,7 @@ let teacherClearAllUnlocked = false;
 
 initStudentButtons();
 initResponses();
-restoreSavedStudentSession();
+restoreSavedSession();
 
 elements.teacherRoleButton.addEventListener("click", () => showTeacherModeView());
 elements.studentRoleButton.addEventListener("click", () => showStudentView());
@@ -189,6 +191,7 @@ document.addEventListener("keydown", (event) => {
   if (isReturnToStartShortcut(event)) {
     event.preventDefault();
     event.stopPropagation();
+    clearSavedSession();
     showRoleView();
     return;
   }
@@ -344,6 +347,7 @@ async function submitWonderStep() {
 }
 
 function showRoleView() {
+  clearSavedRole();
   stopTeacherPolling();
   stopStudentStepPolling();
   closeConfirmModal();
@@ -361,6 +365,7 @@ function isReturnToStartShortcut(event) {
 }
 
 async function showTeacherModeView() {
+  saveTeacherRole();
   stopTeacherPolling();
   stopStudentStepPolling();
   closeConfirmModal();
@@ -409,6 +414,7 @@ async function showTeacherView(selectedMode = null) {
 }
 
 function showStudentView() {
+  clearSavedRole();
   stopTeacherPolling();
   if (restoreSavedStudentSession()) {
     return;
@@ -788,6 +794,15 @@ function resetStudentForm() {
   showStudentStep("student");
 }
 
+function restoreSavedSession() {
+  if (loadSavedRole() === teacherRoleValue) {
+    showTeacherModeView();
+    return true;
+  }
+
+  return restoreSavedStudentSession();
+}
+
 function restoreSavedStudentSession() {
   const savedStudentNumber = loadSavedStudentNumber();
   if (!savedStudentNumber) {
@@ -845,6 +860,43 @@ function saveSelectedStudentNumber(studentNumber) {
     window.localStorage.setItem(savedStudentNumberKey, String(studentNumber));
   } catch {
     // localStorage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function clearSavedSession() {
+  clearSavedRole();
+  clearSavedStudentNumber();
+}
+
+function saveTeacherRole() {
+  try {
+    window.localStorage.setItem(savedRoleKey, teacherRoleValue);
+  } catch {
+    // localStorage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function clearSavedRole() {
+  try {
+    window.localStorage.removeItem(savedRoleKey);
+  } catch {
+    // localStorage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function clearSavedStudentNumber() {
+  try {
+    window.localStorage.removeItem(savedStudentNumberKey);
+  } catch {
+    // localStorage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function loadSavedRole() {
+  try {
+    return window.localStorage.getItem(savedRoleKey);
+  } catch {
+    return null;
   }
 }
 
