@@ -186,10 +186,17 @@ elements.classImageLightbox?.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (isReturnToStartShortcut(event)) {
+    event.preventDefault();
+    event.stopPropagation();
+    showRoleView();
+    return;
+  }
+
   if (event.key === "Escape" && elements.classImageLightbox && !elements.classImageLightbox.hidden) {
     closeClassImageLightbox();
   }
-});
+}, { capture: true });
 
 elements.studentResultButton?.addEventListener("click", () => {
   openStudentResults();
@@ -340,12 +347,17 @@ function showRoleView() {
   stopTeacherPolling();
   stopStudentStepPolling();
   closeConfirmModal();
+  closeClassImageLightbox();
   elements.roleView.hidden = false;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
   elements.studentWaitingView.hidden = true;
   renderPresentationLock();
+}
+
+function isReturnToStartShortcut(event) {
+  return event.ctrlKey && event.altKey && event.key === "Enter" && !event.isComposing;
 }
 
 async function showTeacherModeView() {
