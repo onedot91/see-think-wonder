@@ -1014,7 +1014,7 @@ function stopTeacherPolling() {
 function startStudentStepPolling() {
   stopStudentStepPolling();
   studentStepPollId = window.setInterval(() => {
-    if (!elements.studentView.hidden) {
+    if (isStudentSessionVisible()) {
       refreshActiveClassMode();
       refreshActiveClassStep();
       refreshClassImage();
@@ -1027,6 +1027,10 @@ function stopStudentStepPolling() {
   if (!studentStepPollId) return;
   window.clearInterval(studentStepPollId);
   studentStepPollId = null;
+}
+
+function isStudentSessionVisible() {
+  return !elements.studentView.hidden || !elements.studentWaitingView.hidden;
 }
 
 async function loadResponses() {
