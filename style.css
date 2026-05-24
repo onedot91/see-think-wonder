@@ -326,15 +326,17 @@ textarea::placeholder {
   resize: none;
   overflow: auto;
   scrollbar-gutter: stable;
-  padding: 28px 32px;
+  padding: 34px 40px;
   border: 2px solid #000000;
   border-radius: 18px;
   background: #ffffff;
   color: #000000;
   font-family: "Noto Serif KR", "Nanum Myeongjo", "Batang", "Times New Roman", serif;
-  font-size: clamp(1.25rem, 2.2vw, 2rem);
+  font-size: clamp(1.2rem, 1.9vw, 1.72rem);
   font-weight: 750;
-  line-height: 1.55;
+  line-height: 1.82;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .teacher-summary-text-input:empty::before {
@@ -345,9 +347,10 @@ textarea::placeholder {
 .teacher-summary-text-input .summary-reading-paragraph,
 .teacher-summary-text-input p,
 .teacher-summary-text-input div {
-  margin: 0 0 1.15em;
-  text-indent: 1.15em;
-  line-height: 1.72;
+  max-width: 31em;
+  margin: 0 auto 1.35em;
+  text-indent: 1em;
+  line-height: 1.82;
 }
 
 .teacher-summary-text-input .summary-reading-paragraph:last-child,
@@ -815,20 +818,23 @@ textarea {
   max-height: 52vh;
   overflow: auto;
   white-space: pre-wrap;
-  padding: 28px 32px;
+  padding: 34px 40px;
   border: 2px solid #000000;
   border-radius: 0 0 18px 18px;
   background: #ffffff;
   color: #000000;
   font-family: "Noto Serif KR", "Nanum Myeongjo", "Batang", "Times New Roman", serif;
-  font-size: clamp(1.25rem, 2.2vw, 2rem);
+  font-size: clamp(1.2rem, 1.9vw, 1.72rem);
   font-weight: 750;
-  line-height: 1.72;
+  line-height: 1.82;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .summary-reading-paragraph {
-  margin: 0 0 1.15em;
-  text-indent: 1.15em;
+  max-width: 31em;
+  margin: 0 auto 1.35em;
+  text-indent: 1em;
 }
 
 .summary-reading-paragraph:last-child {
@@ -1518,15 +1524,17 @@ button {
   max-height: 36vh;
   overflow: auto;
   white-space: pre-wrap;
-  padding: 20px 22px;
+  padding: 28px 34px;
   border: 2px solid #000000;
   border-radius: 14px;
   background: #ffffff;
   color: #000000;
   font-family: "Noto Serif KR", "Nanum Myeongjo", "Batang", "Times New Roman", serif;
-  font-size: clamp(1.25rem, 2vw, 1.9rem);
+  font-size: clamp(1.2rem, 1.8vw, 1.65rem);
   font-weight: 750;
-  line-height: 1.72;
+  line-height: 1.82;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .summary-result-panel {

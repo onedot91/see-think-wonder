@@ -84,6 +84,7 @@ const elements = {
 };
 
 let responses = [];
+let summaryResponses = {};
 let selectedStudentNumber = "";
 let currentStudentStep = "student";
 let activeTeacherStep = "see";
@@ -332,13 +333,14 @@ async function submitSummaryStep() {
   }
 
   try {
-    await appendStudentStep("summary", headline);
+    await saveSummaryHeadline(getStudentName(), headline);
   } catch {
     showToast("헤드라인을 제출하지 못했습니다.");
     return;
   }
 
   clearSummaryInput();
+  await refreshSummaryResponses();
   renderResponses();
   showToast(`${getStudentName()} 헤드라인 제출 완료`);
   focusSummaryInput();
@@ -653,7 +655,7 @@ function hasCurrentStudentInput() {
 function hasSubmittedCurrentStudentStep() {
   const response = getSelectedStudentResponse();
   if (currentStudentStep === "summary") {
-    return hasSubmittedStep(response, "summary");
+    return Boolean(getSummaryHeadline(getStudentName()));
   }
 
   if (currentStudentStep === "combined") {
@@ -1132,6 +1134,7 @@ async function refreshResponses() {
 
   try {
     responses = await loadResponses();
+    await refreshSummaryResponses();
     updateBackendStatus("online", "DB 연결됨");
     renderResponses();
   } catch {
@@ -1174,6 +1177,7 @@ function startTeacherPolling() {
     await refreshActiveClassStep({ renderStudent: false });
     await refreshClassImage();
     await refreshSummaryText();
+    await refreshSummaryResponses();
     refreshResponses();
   }, 2000);
 }
@@ -1494,6 +1498,86 @@ async function saveSummaryTextSetting(value) {
 
   if (existingRows[0]) {
     await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(summaryTextSettingId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    return;
+  }
+
+  await supabaseRequest(`/${supabaseSettingsTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function refreshSummaryResponses() {
+  if (!isSupabaseReady()) {
+    return summaryResponses;
+  }
+
+  const rows = await supabaseRequest(`/${supabaseSettingsTable}?select=id,value,updated_at`);
+  summaryResponses = rows
+    .filter((row) => /^summary_response_\d+$/.test(row.id || ""))
+    .reduce((items, row) => {
+      const number = Number(row.id.replace("summary_response_", ""));
+      if (number >= 1 && number <= studentCount && row.value) {
+        items[`${number}번`] = row.value;
+      }
+      return items;
+    }, {});
+  return summaryResponses;
+}
+
+async function saveSummaryHeadline(studentName, value) {
+  const settingId = getSummaryResponseSettingId(studentName);
+  if (!settingId || !isSupabaseReady()) {
+    throw new Error("Supabase is not configured");
+  }
+
+  await saveSettingsValue(settingId, value);
+  summaryResponses = {
+    ...summaryResponses,
+    [studentName]: value,
+  };
+}
+
+async function deleteSummaryHeadline(studentName) {
+  const settingId = getSummaryResponseSettingId(studentName);
+  if (!settingId || !isSupabaseReady()) {
+    throw new Error("Supabase is not configured");
+  }
+
+  await saveSettingsValue(settingId, "");
+  const nextResponses = { ...summaryResponses };
+  delete nextResponses[studentName];
+  summaryResponses = nextResponses;
+}
+
+function getSummaryHeadline(studentName) {
+  return summaryResponses[studentName] || "";
+}
+
+function getSummaryResponseSettingId(studentName) {
+  const match = /^(\d+)번$/.exec(studentName || "");
+  if (!match) return "";
+  return `summary_response_${match[1]}`;
+}
+
+async function saveSettingsValue(id, value) {
+  const payload = {
+    id,
+    value,
+    updated_at: new Date().toISOString(),
+  };
+
+  const existingRows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(id)}&select=id&limit=1`
+  );
+
+  if (existingRows[0]) {
+    await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify(payload),
@@ -1935,7 +2019,6 @@ async function insertCombinedResponse(studentName, values) {
     think: [],
     wonder: [],
     combined: values,
-    summary: [],
     createdAt: new Date().toISOString(),
   };
   const rows = await supabaseRequest(`/${supabaseTable}`, {
@@ -1959,7 +2042,6 @@ async function insertStepResponse(studentName, step, values) {
     think: step === "think" ? values : [],
     wonder: step === "wonder" ? values : [],
     combined: [],
-    summary: step === "summary" ? values : [],
     createdAt: new Date().toISOString(),
   };
   const rows = await supabaseRequest(`/${supabaseTable}`, {
@@ -2117,7 +2199,6 @@ function toSupabaseRow(response) {
     think: response.think,
     wonder: response.wonder,
     combined: response.combined || [],
-    summary: response.summary || [],
     created_at: response.createdAt,
   };
 }
@@ -2130,7 +2211,6 @@ function fromSupabaseRow(row) {
     think: normalizeList(row.think),
     wonder: normalizeList(row.wonder),
     combined: normalizeCombinedList(row.combined),
-    summary: normalizeList(row.summary),
     createdAt: row.created_at,
   };
 }
@@ -2190,7 +2270,7 @@ function renderSummaryResultPanel() {
     <div class="teacher-student-grid summary-student-grid">
       ${Array.from({ length: studentCount }, (_, index) => {
         const studentName = `${index + 1}번`;
-        const submitted = hasSubmittedStep(getResponseByStudentName(studentName), "summary");
+        const submitted = Boolean(getSummaryHeadline(studentName));
         return `
         <button class="teacher-student-button ${submitted ? "is-submitted" : "is-empty"}" type="button" data-summary-student="${index + 1}" ${submitted ? "" : "disabled"}>
           <span>${index + 1}</span>
@@ -2747,16 +2827,17 @@ function getCollectedCombinedAnswers() {
 }
 
 function getCollectedSummaryAnswers() {
-  return getSubmittedStudentResponses()
-    .flatMap((response) =>
-      normalizeList(response.summary).filter(Boolean).map((value, answerIndex) => ({
-        responseId: response.id,
-        studentName: response.name,
-        answerIndex,
-        value,
-        cardClass: getPostitLengthClass(value),
-      }))
-    );
+  return Array.from({ length: studentCount }, (_, index) => {
+    const studentName = `${index + 1}번`;
+    const value = getSummaryHeadline(studentName);
+    return value ? {
+      responseId: getSummaryResponseSettingId(studentName),
+      studentName,
+      answerIndex: 0,
+      value,
+      cardClass: getPostitLengthClass(value),
+    } : null;
+  }).filter(Boolean);
 }
 
 function renderCombinedSentence(item) {
@@ -2909,8 +2990,8 @@ function openTeacherCombinedStudentModal(studentName, selectedAnswerIndex = null
 }
 
 function openTeacherSummaryStudentModal(studentName, selectedAnswerIndex = null) {
-  const response = getResponseByStudentName(studentName);
-  if (!response) return;
+  const headline = getSummaryHeadline(studentName);
+  if (!headline) return;
 
   savePresentationLockSetting(true).catch(() => {
     showToast("발표 집중 모드를 켜지 못했습니다.");
@@ -2923,21 +3004,21 @@ function openTeacherSummaryStudentModal(studentName, selectedAnswerIndex = null)
   elements.confirmModal.classList.toggle("teacher-tools-locked", !teacherToolsUnlocked);
   elements.modalSentenceList.innerHTML = `
     <section class="teacher-response-set teacher-response-single">
-      <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(response.id)}" aria-label="학생 답변 비우기" title="비우기">
+      <button class="icon-delete-button" type="button" data-delete-response="${escapeAttribute(getSummaryResponseSettingId(studentName))}" aria-label="학생 답변 비우기" title="비우기">
         삭제
       </button>
       <div class="teacher-modal-answer">
-        ${renderValueCards(response.summary, "summary", (value) => `<p><span class="sentence-block summary-block">${escapeHtml(value)}</span></p>`, selectedAnswerIndex)}
+        ${renderValueCards([headline], "summary", (value) => `<p><span class="sentence-block summary-block">${escapeHtml(value)}</span></p>`, selectedAnswerIndex)}
       </div>
     </section>
   `;
 
   elements.modalSentenceList.querySelector("[data-delete-response]")?.addEventListener("click", async (event) => {
-    const responseId = event.currentTarget.dataset.deleteResponse;
-    if (!responseId || !window.confirm(`${studentName}의 답변을 모두 비울까요?`)) return;
+    if (!window.confirm(`${studentName}의 답변을 비울까요?`)) return;
 
     try {
-      await deleteResponse(responseId);
+      await deleteSummaryHeadline(studentName);
+      await refreshSummaryResponses();
       renderResponses();
       closeConfirmModal();
       showToast("비웠습니다.");
