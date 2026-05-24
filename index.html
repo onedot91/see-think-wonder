@@ -87,6 +87,7 @@
           <section class="student-step" data-step="waiting" hidden>
             <div class="student-waiting-card">
               <div class="student-waiting-spinner" aria-hidden="true"></div>
+              <strong class="student-waiting-number" id="studentWaitingNumber"></strong>
               <p>교사가 진행 방식을 선택하는 중입니다.</p>
               <small>잠시만 기다려 주세요.</small>
             </div>
@@ -132,6 +133,12 @@
     <div class="image-lightbox" id="classImageLightbox" hidden>
       <button class="image-lightbox-close" id="classImageLightboxClose" type="button" aria-label="닫기">닫기</button>
       <img id="classImageLightboxImage" alt="수업 사진 크게 보기" />
+    </div>
+
+    <div class="student-focus-modal" id="studentFocusModal" hidden>
+      <section class="student-focus-card" role="alertdialog" aria-modal="true">
+        <p>친구의 발표를 들어봅시다</p>
+      </section>
     </div>
 
     <script type="module" src="/script.js"></script>

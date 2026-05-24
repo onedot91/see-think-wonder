@@ -5,6 +5,8 @@ const supabaseSettingsTable = "stw_settings";
 const activeStepSettingId = "active_step";
 const activeModeSettingId = "active_mode";
 const classImageSettingId = "class_image";
+const presentationLockSettingId = "presentation_lock";
+const savedStudentNumberKey = "stw_student_number";
 const supabaseRestUrl = buildSupabaseRestUrl(supabaseUrl);
 const studentCount = 23;
 const answerAccentCount = 3;
@@ -48,8 +50,10 @@ const elements = {
   classImageLightbox: document.querySelector("#classImageLightbox"),
   classImageLightboxImage: document.querySelector("#classImageLightboxImage"),
   classImageLightboxClose: document.querySelector("#classImageLightboxClose"),
+  studentFocusModal: document.querySelector("#studentFocusModal"),
   groupButtons: document.querySelector("#groupButtons"),
   studentNumberInput: document.querySelector("#studentNumberInput"),
+  studentWaitingNumber: document.querySelector("#studentWaitingNumber"),
   seeList: document.querySelector("#seeList"),
   thinkList: document.querySelector("#thinkList"),
   wonderList: document.querySelector("#wonderList"),
@@ -69,6 +73,7 @@ let activeTeacherStep = "see";
 let activeClassStep = "see";
 let activeClassMode = null;
 let classImageDataUrl = "";
+let activePresentationLock = false;
 let modalMode = "student";
 let teacherPollId = null;
 let studentStepPollId = null;
@@ -78,6 +83,7 @@ let teacherToolsUnlocked = false;
 
 initStudentButtons();
 initResponses();
+restoreSavedStudentSession();
 
 elements.teacherRoleButton.addEventListener("click", () => showTeacherModeView());
 elements.studentRoleButton.addEventListener("click", () => showStudentView());
@@ -321,12 +327,14 @@ function showRoleView() {
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
+  renderPresentationLock();
 }
 
 async function showTeacherModeView() {
   stopTeacherPolling();
   stopStudentStepPolling();
   closeConfirmModal();
+  savePresentationLockSetting(false).catch(() => {});
   activeClassMode = null;
   if (isSupabaseReady()) {
     try {
@@ -365,10 +373,15 @@ async function showTeacherView(selectedMode = null) {
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = false;
   elements.studentView.hidden = true;
+  renderPresentationLock();
 }
 
 function showStudentView() {
   stopTeacherPolling();
+  if (restoreSavedStudentSession()) {
+    return;
+  }
+
   resetStudentForm();
   activeClassMode = null;
   elements.roleView.hidden = true;
@@ -377,6 +390,7 @@ function showStudentView() {
   elements.studentView.hidden = false;
   elements.studentNumberInput?.focus();
   refreshClassImage();
+  refreshPresentationLock();
   refreshActiveClassMode();
   refreshActiveClassStep();
   startStudentStepPolling();
@@ -409,6 +423,7 @@ function showStudentStep(step) {
   elements.studentStepTitle.innerHTML = title.icon
     ? `<span class="step-title-icon" aria-hidden="true">${title.icon}</span><span class="step-title-text">${title.text}</span>`
     : `<span class="step-title-text">${title.text}</span>`;
+  renderWaitingStudentNumber();
   renderClassImage();
   animateClassImageEntrance(step, previousStudentStep);
   updateStudentTopActions(step);
@@ -514,6 +529,7 @@ async function goFromStudentToSee() {
   }
 
   selectedStudentNumber = String(studentNumber);
+  saveSelectedStudentNumber(selectedStudentNumber);
   await refreshActiveClassMode({ renderStudent: false });
   await refreshClassImage();
   await loadSelectedStudentResponse();
@@ -605,6 +621,7 @@ function renderCombinedRows(values = {}) {
 }
 
 function closeConfirmModal() {
+  const shouldReleasePresentationLock = modalMode === "teacher";
   modalMode = "student";
   elements.confirmModal.hidden = true;
   elements.confirmModal.classList.remove("teacher-tools-locked");
@@ -612,6 +629,9 @@ function closeConfirmModal() {
   elements.modalSentenceList.innerHTML = "";
   elements.modalBackButton.hidden = false;
   elements.modalSubmitButton.textContent = "닫기";
+  if (shouldReleasePresentationLock) {
+    savePresentationLockSetting(false).catch(() => {});
+  }
 }
 
 function openClassImageLightbox() {
@@ -730,6 +750,54 @@ function resetStudentForm() {
   showStudentStep("student");
 }
 
+function restoreSavedStudentSession() {
+  const savedStudentNumber = loadSavedStudentNumber();
+  if (!savedStudentNumber) {
+    return false;
+  }
+
+  selectedStudentNumber = String(savedStudentNumber);
+  if (elements.studentNumberInput) {
+    elements.studentNumberInput.value = selectedStudentNumber;
+  }
+  renderEmptyStepInputs();
+  elements.roleView.hidden = true;
+  elements.teacherModeView.hidden = true;
+  elements.teacherView.hidden = true;
+  elements.studentView.hidden = false;
+  showStudentStep("waiting");
+  refreshClassImage();
+  refreshPresentationLock();
+  refreshActiveClassMode();
+  refreshActiveClassStep();
+  startStudentStepPolling();
+  return true;
+}
+
+function renderWaitingStudentNumber() {
+  if (!elements.studentWaitingNumber) return;
+  elements.studentWaitingNumber.textContent = selectedStudentNumber ? `${selectedStudentNumber}번` : "";
+}
+
+function saveSelectedStudentNumber(studentNumber) {
+  try {
+    window.localStorage.setItem(savedStudentNumberKey, String(studentNumber));
+  } catch {
+    // localStorage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+function loadSavedStudentNumber() {
+  try {
+    const savedNumber = normalizeStudentNumber(window.localStorage.getItem(savedStudentNumberKey));
+    if (savedNumber) return savedNumber;
+    window.localStorage.removeItem(savedStudentNumberKey);
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function resetAnswerLists() {
   elements.seeList.innerHTML = "";
   elements.thinkList.innerHTML = "";
@@ -837,6 +905,7 @@ function startStudentStepPolling() {
       refreshActiveClassMode();
       refreshActiveClassStep();
       refreshClassImage();
+      refreshPresentationLock();
     }
   }, 2000);
 }
@@ -957,6 +1026,69 @@ async function cancelClassImageUpload() {
   } catch {
     showToast("업로드를 취소하지 못했습니다.");
   }
+}
+
+async function refreshPresentationLock() {
+  const previousLock = activePresentationLock;
+
+  try {
+    activePresentationLock = await loadPresentationLockSetting();
+  } catch {
+    activePresentationLock = previousLock;
+  }
+
+  renderPresentationLock();
+  return activePresentationLock;
+}
+
+function renderPresentationLock() {
+  if (!elements.studentFocusModal) return;
+  elements.studentFocusModal.hidden = !activePresentationLock || elements.studentView.hidden;
+}
+
+async function loadPresentationLockSetting() {
+  if (!isSupabaseReady()) {
+    return activePresentationLock;
+  }
+
+  const rows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(presentationLockSettingId)}&select=value&limit=1`
+  );
+  return rows[0]?.value === "on";
+}
+
+async function savePresentationLockSetting(isLocked) {
+  activePresentationLock = Boolean(isLocked);
+  renderPresentationLock();
+
+  if (!isSupabaseReady()) {
+    return;
+  }
+
+  const payload = {
+    id: presentationLockSettingId,
+    value: isLocked ? "on" : "off",
+    updated_at: new Date().toISOString(),
+  };
+
+  const existingRows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(presentationLockSettingId)}&select=id&limit=1`
+  );
+
+  if (existingRows[0]) {
+    await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(presentationLockSettingId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    return;
+  }
+
+  await supabaseRequest(`/${supabaseSettingsTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
 }
 
 async function refreshClassImage() {
@@ -1468,8 +1600,39 @@ function renderResponses() {
 function renderTeacherDashboard() {
   const dashboard = document.createElement("section");
   dashboard.className = `teacher-dashboard is-${activeClassMode === "combined" ? "combined" : activeTeacherStep}`;
+  dashboard.append(renderTeacherDashboardActions());
   dashboard.append(renderTeacherDashboardBody());
   return dashboard;
+}
+
+function renderTeacherDashboardActions() {
+  const actions = document.createElement("div");
+  actions.className = "teacher-dashboard-actions";
+  actions.innerHTML = `
+    <button class="danger-button teacher-clear-all-button" type="button" ${responses.length === 0 ? "disabled" : ""}>
+      결과 전부 삭제
+    </button>
+  `;
+
+  actions.querySelector(".teacher-clear-all-button")?.addEventListener("click", async (event) => {
+    if (responses.length === 0) return;
+    const confirmed = window.confirm("모든 학생 결과를 삭제할까요?");
+    if (!confirmed) return;
+
+    const button = event.currentTarget;
+    button.disabled = true;
+
+    try {
+      await clearResponses();
+      renderResponses();
+      showToast("결과를 전부 삭제했습니다.");
+    } catch {
+      button.disabled = false;
+      showToast("결과를 삭제하지 못했습니다.");
+    }
+  });
+
+  return actions;
 }
 
 function renderTeacherDashboardBody() {
@@ -1811,6 +1974,9 @@ function openTeacherStudentModal(studentName, step, selectedAnswerIndex = null) 
   const response = getResponseByStudentName(studentName);
   if (!response) return;
 
+  savePresentationLockSetting(true).catch(() => {
+    showToast("발표 집중 모드를 켜지 못했습니다.");
+  });
   modalMode = "teacher";
   document.querySelector("#confirmModalTitle").textContent = studentName;
   elements.modalBackButton.hidden = true;
@@ -1847,6 +2013,9 @@ function openTeacherCombinedStudentModal(studentName, selectedAnswerIndex = null
   const response = getResponseByStudentName(studentName);
   if (!response) return;
 
+  savePresentationLockSetting(true).catch(() => {
+    showToast("발표 집중 모드를 켜지 못했습니다.");
+  });
   modalMode = "teacher";
   document.querySelector("#confirmModalTitle").textContent = studentName;
   elements.modalBackButton.hidden = true;

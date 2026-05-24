@@ -800,6 +800,20 @@ textarea {
   animation: waiting-spin 900ms linear infinite;
 }
 
+.student-waiting-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 140px;
+  min-height: 64px;
+  padding: 10px 22px;
+  border: 3px solid #000000;
+  border-radius: 8px;
+  font-size: clamp(2rem, 3.5vw, 3.2rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
 .student-waiting-card p {
   margin: 0;
   font-size: clamp(2.2rem, 4vw, 3.8rem);
@@ -1201,6 +1215,18 @@ button {
 .teacher-dashboard {
   display: grid;
   gap: 18px;
+}
+
+.teacher-dashboard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.teacher-clear-all-button {
+  min-width: 220px;
+  min-height: 62px;
+  font-size: 1.45rem;
 }
 
 .teacher-dashboard-body {
@@ -1761,6 +1787,36 @@ button {
   color: #000000;
   font-size: 1.35rem;
   cursor: pointer;
+}
+
+.student-focus-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.student-focus-modal[hidden] {
+  display: none;
+}
+
+.student-focus-card {
+  width: min(860px, 92vw);
+  padding: 60px 48px;
+  border: 3px solid #000000;
+  border-radius: 28px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.student-focus-card p {
+  margin: 0;
+  font-size: clamp(2.4rem, 5vw, 4.6rem);
+  font-weight: 900;
+  line-height: 1.18;
 }
 
 .confirm-modal {
