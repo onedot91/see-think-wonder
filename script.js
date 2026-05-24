@@ -33,6 +33,7 @@ const elements = {
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
   teacherModeChoiceButtons: document.querySelectorAll("[data-open-teacher-mode]"),
   classImageInput: document.querySelector("#classImageInput"),
+  classImageCancelButton: document.querySelector("#classImageCancelButton"),
   classImagePreview: document.querySelector("#classImagePreview"),
   classImageStatus: document.querySelector("#classImageStatus"),
   studentRoleButton: document.querySelector("#studentRoleButton"),
@@ -105,6 +106,7 @@ elements.changeRoleButtons.forEach((button) => {
 elements.studentForm.addEventListener("input", (event) => {
   if (event.target instanceof HTMLTextAreaElement) {
     resizeTextarea(event.target);
+    updateSingleResponseInputState(event.target);
   }
   updateStudentSubmitState();
 });
@@ -134,6 +136,10 @@ elements.topNextButton.addEventListener("click", () => {
 
 elements.classImageInput?.addEventListener("change", () => {
   uploadClassImage(elements.classImageInput.files?.[0]);
+});
+
+elements.classImageCancelButton?.addEventListener("click", () => {
+  cancelClassImageUpload();
 });
 
 elements.studentClassImageCard?.addEventListener("click", () => {
@@ -378,6 +384,7 @@ function showStudentView() {
 
 function showStudentStep(step) {
   let activeSection = null;
+  const previousStudentStep = currentStudentStep;
   currentStudentStep = step;
 
   document.querySelectorAll(".student-step").forEach((section) => {
@@ -403,7 +410,7 @@ function showStudentStep(step) {
     ? `<span class="step-title-icon" aria-hidden="true">${title.icon}</span><span class="step-title-text">${title.text}</span>`
     : `<span class="step-title-text">${title.text}</span>`;
   renderClassImage();
-  animateClassImageEntrance(step);
+  animateClassImageEntrance(step, previousStudentStep);
   updateStudentTopActions(step);
 
   if (activeSection) {
@@ -413,8 +420,13 @@ function showStudentStep(step) {
   }
 }
 
-function animateClassImageEntrance(step) {
-  if (!elements.studentView || !classImageDataUrl || step === "student") return;
+function animateClassImageEntrance(step, previousStep) {
+  const isFirstAnswerStep = step === "see" || step === "combined";
+  const isEnteringFromStart = previousStep === "student" || previousStep === "waiting";
+  if (!elements.studentView || !classImageDataUrl || !isFirstAnswerStep || !isEnteringFromStart) {
+    elements.studentView?.classList.remove("is-image-entering");
+    return;
+  }
 
   elements.studentView.classList.remove("is-image-entering");
   void elements.studentView.offsetWidth;
@@ -535,6 +547,7 @@ function addSeeRow(value = "") {
   `;
 
   elements.seeList.append(row);
+  updateSingleResponseInputState(row.querySelector(".single-response-input"));
   resizeTextareas(row);
 }
 
@@ -548,6 +561,7 @@ function renderThinkRows(value = "") {
     </label>
   `;
   elements.thinkList.append(row);
+  updateSingleResponseInputState(row.querySelector(".single-response-input"));
   resizeTextareas(row);
 }
 
@@ -562,6 +576,7 @@ function renderWonderRows(value = "") {
     </label>
   `;
   elements.wonderList.append(row);
+  updateSingleResponseInputState(row.querySelector(".single-response-input"));
   resizeTextareas(row);
 }
 
@@ -688,8 +703,17 @@ function clearStepInput(step) {
   const input = inputByStep[step];
   if (!input) return;
   input.value = "";
+  updateSingleResponseInputState(input);
   resizeTextarea(input);
   updateStudentSubmitState();
+}
+
+function updateSingleResponseInputState(input) {
+  if (!input) return;
+
+  const hasValue = input.value.trim().length > 0;
+  input.classList.toggle("has-value", hasValue);
+  input.classList.toggle("is-empty", !hasValue);
 }
 
 function clearCombinedInputs() {
@@ -916,6 +940,25 @@ async function uploadClassImage(file) {
   }
 }
 
+async function cancelClassImageUpload() {
+  if (!classImageDataUrl) return;
+
+  if (!isSupabaseReady()) {
+    showToast("DB 설정이 필요합니다.");
+    return;
+  }
+
+  try {
+    await saveClassImageSetting("");
+    classImageDataUrl = "";
+    closeClassImageLightbox();
+    renderClassImage();
+    showToast("업로드를 취소했습니다.");
+  } catch {
+    showToast("업로드를 취소하지 못했습니다.");
+  }
+}
+
 async function refreshClassImage() {
   const previousImage = classImageDataUrl;
 
@@ -943,6 +986,10 @@ function renderClassImage() {
 
   if (elements.classImageStatus) {
     elements.classImageStatus.textContent = hasImage ? "업로드 완료" : "4:3 사진을 업로드해 주세요.";
+  }
+
+  if (elements.classImageCancelButton) {
+    elements.classImageCancelButton.hidden = !hasImage;
   }
 
   if (elements.studentClassImageCard && elements.studentClassImage) {

@@ -29,7 +29,10 @@
             <p id="classImageStatus">4:3 사진을 업로드해 주세요.</p>
           </div>
           <img class="teacher-upload-preview" id="classImagePreview" alt="업로드한 수업 사진" hidden />
-          <label class="secondary-button upload-button" for="classImageInput">업로드</label>
+          <div class="teacher-upload-actions">
+            <label class="secondary-button upload-button" for="classImageInput">업로드</label>
+            <button class="secondary-button upload-cancel-button" id="classImageCancelButton" type="button" hidden>업로드 취소</button>
+          </div>
           <input id="classImageInput" type="file" accept="image/*" hidden />
         </section>
         <div class="teacher-mode-choice-grid">
