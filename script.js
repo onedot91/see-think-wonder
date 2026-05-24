@@ -29,9 +29,11 @@ const elements = {
   teacherModeView: document.querySelector("#teacherModeView"),
   teacherView: document.querySelector("#teacherView"),
   teacherTitle: document.querySelector("#teacherView h1"),
+  teacherClearTrigger: document.querySelector("#teacherClearTrigger"),
   teacherModeTabs: document.querySelector("#teacherModeTabs"),
   teacherTopTabs: document.querySelector("#teacherTopTabs"),
   studentView: document.querySelector("#studentView"),
+  studentWaitingView: document.querySelector("#studentWaitingView"),
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
   teacherModeChoiceButtons: document.querySelectorAll("[data-open-teacher-mode]"),
   classImageInput: document.querySelector("#classImageInput"),
@@ -54,6 +56,7 @@ const elements = {
   groupButtons: document.querySelector("#groupButtons"),
   studentNumberInput: document.querySelector("#studentNumberInput"),
   studentWaitingNumber: document.querySelector("#studentWaitingNumber"),
+  studentWaitingPageNumber: document.querySelector("#studentWaitingPageNumber"),
   seeList: document.querySelector("#seeList"),
   thinkList: document.querySelector("#thinkList"),
   wonderList: document.querySelector("#wonderList"),
@@ -80,6 +83,8 @@ let studentStepPollId = null;
 let isBackendOnline = false;
 let teacherToolsClickCount = 0;
 let teacherToolsUnlocked = false;
+let teacherClearAllClickCount = 0;
+let teacherClearAllUnlocked = false;
 
 initStudentButtons();
 initResponses();
@@ -101,6 +106,18 @@ elements.teacherTitle.addEventListener("click", () => {
   if (teacherToolsClickCount >= 5) {
     teacherToolsUnlocked = true;
     showToast("관리 버튼을 표시합니다.");
+    renderResponses();
+  }
+});
+
+elements.teacherClearTrigger?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  if (teacherClearAllUnlocked) return;
+
+  teacherClearAllClickCount += 1;
+  if (teacherClearAllClickCount >= 3) {
+    teacherClearAllUnlocked = true;
+    showToast("전체 삭제 버튼을 표시합니다.");
     renderResponses();
   }
 });
@@ -327,6 +344,7 @@ function showRoleView() {
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
+  elements.studentWaitingView.hidden = true;
   renderPresentationLock();
 }
 
@@ -348,6 +366,7 @@ async function showTeacherModeView() {
   elements.teacherModeView.hidden = false;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = true;
+  elements.studentWaitingView.hidden = true;
 }
 
 async function showTeacherView(selectedMode = null) {
@@ -373,6 +392,7 @@ async function showTeacherView(selectedMode = null) {
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = false;
   elements.studentView.hidden = true;
+  elements.studentWaitingView.hidden = true;
   renderPresentationLock();
 }
 
@@ -388,6 +408,7 @@ function showStudentView() {
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
   elements.studentView.hidden = false;
+  elements.studentWaitingView.hidden = true;
   elements.studentNumberInput?.focus();
   refreshClassImage();
   refreshPresentationLock();
@@ -533,8 +554,13 @@ async function goFromStudentToSee() {
   await refreshActiveClassMode({ renderStudent: false });
   await refreshClassImage();
   await loadSelectedStudentResponse();
-  showStudentStep(getStudentEntryStep());
-  focusCurrentStepInput();
+  const entryStep = getStudentEntryStep();
+  if (entryStep === "waiting") {
+    showStudentWaitingView();
+    return;
+  }
+
+  showStudentAnswerView(entryStep);
 }
 
 function getStudentEntryStep() {
@@ -761,22 +787,45 @@ function restoreSavedStudentSession() {
     elements.studentNumberInput.value = selectedStudentNumber;
   }
   renderEmptyStepInputs();
+  showStudentWaitingView();
+  return true;
+}
+
+function showStudentWaitingView() {
+  stopTeacherPolling();
+  currentStudentStep = "waiting";
   elements.roleView.hidden = true;
   elements.teacherModeView.hidden = true;
   elements.teacherView.hidden = true;
-  elements.studentView.hidden = false;
-  showStudentStep("waiting");
-  refreshClassImage();
+  elements.studentView.hidden = true;
+  elements.studentWaitingView.hidden = false;
+  renderWaitingStudentNumber();
   refreshPresentationLock();
   refreshActiveClassMode();
   refreshActiveClassStep();
   startStudentStepPolling();
-  return true;
+}
+
+function showStudentAnswerView(step) {
+  elements.roleView.hidden = true;
+  elements.teacherModeView.hidden = true;
+  elements.teacherView.hidden = true;
+  elements.studentWaitingView.hidden = true;
+  elements.studentView.hidden = false;
+  refreshClassImage();
+  showStudentStep(step);
+  focusCurrentStepInput();
+  startStudentStepPolling();
 }
 
 function renderWaitingStudentNumber() {
-  if (!elements.studentWaitingNumber) return;
-  elements.studentWaitingNumber.textContent = selectedStudentNumber ? `${selectedStudentNumber}번` : "";
+  const label = selectedStudentNumber ? `${selectedStudentNumber}번` : "";
+  if (elements.studentWaitingNumber) {
+    elements.studentWaitingNumber.textContent = label;
+  }
+  if (elements.studentWaitingPageNumber) {
+    elements.studentWaitingPageNumber.textContent = label;
+  }
 }
 
 function saveSelectedStudentNumber(studentNumber) {
@@ -941,7 +990,7 @@ async function refreshActiveClassStep(options = {}) {
 
   if (!activeClassMode) {
     if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student" && currentStudentStep !== "waiting") {
-      showStudentStep("waiting");
+      showStudentWaitingView();
     }
     return activeClassStep;
   }
@@ -970,6 +1019,16 @@ async function refreshActiveClassMode(options = {}) {
     activeClassMode = await loadActiveClassMode();
   } catch {
     activeClassMode = previousMode;
+  }
+
+  if (renderStudent && !elements.studentWaitingView.hidden && activeClassMode) {
+    showStudentAnswerView(getStudentEntryStep());
+    return activeClassMode;
+  }
+
+  if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student" && !activeClassMode) {
+    showStudentWaitingView();
+    return activeClassMode;
   }
 
   if (renderStudent && !elements.studentView.hidden && currentStudentStep !== "student") {
@@ -1609,7 +1668,7 @@ function renderTeacherDashboardActions() {
   const actions = document.createElement("div");
   actions.className = "teacher-dashboard-actions";
   actions.innerHTML = `
-    <button class="danger-button teacher-clear-all-button" type="button" ${responses.length === 0 ? "disabled" : ""}>
+    <button class="danger-button teacher-clear-all-button" type="button" ${teacherClearAllUnlocked ? "" : "hidden"} ${responses.length === 0 ? "disabled" : ""}>
       결과 전부 삭제
     </button>
   `;
