@@ -187,6 +187,12 @@ elements.summaryTextInput?.addEventListener("input", () => {
   renderSummaryTextStatus();
 });
 
+elements.summaryTextInput?.addEventListener("paste", (event) => {
+  event.preventDefault();
+  const text = event.clipboardData?.getData("text/plain") || "";
+  insertPlainText(text);
+});
+
 elements.summaryTextRegisterButton?.addEventListener("click", () => {
   registerSummaryText();
 });
@@ -1338,7 +1344,7 @@ async function cancelClassImageUpload() {
 }
 
 async function registerSummaryText(options = {}) {
-  const nextText = elements.summaryTextInput?.value.trim() || "";
+  const nextText = getSummaryEditorText();
   if (!nextText) {
     showToast("수업에서 사용할 글을 넣어 주세요.");
     elements.summaryTextInput?.focus();
@@ -1389,8 +1395,8 @@ async function refreshSummaryText() {
 }
 
 function renderSummaryText() {
-  if (elements.summaryTextInput && elements.summaryTextInput.value !== summaryText) {
-    elements.summaryTextInput.value = summaryText;
+  if (elements.summaryTextInput && getSummaryEditorText() !== summaryText) {
+    setSummaryEditorText(summaryText);
   }
   if (currentStudentStep === "summary") {
     const readingCard = elements.summaryList.querySelector(".summary-reading-card");
@@ -1405,7 +1411,7 @@ function renderSummaryText() {
 
 function renderSummaryTextStatus() {
   if (!elements.summaryTextStatus) return;
-  const inputText = elements.summaryTextInput?.value.trim() || "";
+  const inputText = getSummaryEditorText();
   if (!inputText) {
     elements.summaryTextStatus.textContent = "글을 입력해 주세요.";
     return;
@@ -1413,7 +1419,38 @@ function renderSummaryTextStatus() {
   elements.summaryTextStatus.textContent = inputText === summaryText ? "등록 완료" : "등록해 주세요.";
 }
 
-function renderSummaryReadingText(value) {
+function getSummaryEditorText() {
+  if (!elements.summaryTextInput) return "";
+  return normalizeEditableText(elements.summaryTextInput.innerText || elements.summaryTextInput.textContent || "");
+}
+
+function setSummaryEditorText(value) {
+  if (!elements.summaryTextInput) return;
+  elements.summaryTextInput.innerHTML = renderSummaryReadingText(value, { emptyText: "" });
+}
+
+function insertPlainText(text) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+  selection.deleteFromDocument();
+  selection.getRangeAt(0).insertNode(document.createTextNode(text));
+  selection.collapseToEnd();
+  setSummaryEditorText(getSummaryEditorText());
+  renderSummaryTextStatus();
+}
+
+function normalizeEditableText(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+function renderSummaryReadingText(value, options = {}) {
+  const { emptyText = "등록된 글이 없습니다." } = options;
   const paragraphs = String(value || "")
     .trim()
     .split(/\n\s*\n|\n/)
@@ -1421,7 +1458,7 @@ function renderSummaryReadingText(value) {
     .filter(Boolean);
 
   if (paragraphs.length === 0) {
-    return `<p class="summary-reading-paragraph is-empty">등록된 글이 없습니다.</p>`;
+    return emptyText ? `<p class="summary-reading-paragraph is-empty">${escapeHtml(emptyText)}</p>` : "";
   }
 
   return paragraphs

@@ -41,7 +41,14 @@
             <h2>수업 글</h2>
             <p id="summaryTextStatus">글을 입력해 주세요.</p>
           </div>
-          <textarea class="teacher-summary-text-input" id="summaryTextInput" placeholder="수업에서 사용할 글을 넣어 주세요."></textarea>
+          <div
+            class="teacher-summary-text-input"
+            id="summaryTextInput"
+            contenteditable="true"
+            role="textbox"
+            aria-multiline="true"
+            data-placeholder="수업에서 사용할 글을 넣어 주세요."
+          ></div>
           <div class="teacher-upload-actions">
             <button class="secondary-button upload-button" id="summaryTextRegisterButton" type="button">등록</button>
           </div>

@@ -335,7 +335,25 @@ textarea::placeholder {
   font-size: clamp(1.25rem, 2.2vw, 2rem);
   font-weight: 750;
   line-height: 1.55;
-  text-indent: 1.1em;
+}
+
+.teacher-summary-text-input:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(0, 0, 0, 0.38);
+}
+
+.teacher-summary-text-input .summary-reading-paragraph,
+.teacher-summary-text-input p,
+.teacher-summary-text-input div {
+  margin: 0 0 1.15em;
+  text-indent: 1.15em;
+  line-height: 1.72;
+}
+
+.teacher-summary-text-input .summary-reading-paragraph:last-child,
+.teacher-summary-text-input p:last-child,
+.teacher-summary-text-input div:last-child {
+  margin-bottom: 0;
 }
 
 #summaryStartButton {
@@ -779,6 +797,7 @@ textarea {
   border-radius: 18px 18px 0 0;
   background: var(--block-cream);
   color: #000000;
+  font-family: "Noto Serif KR", "Nanum Myeongjo", "Batang", "Times New Roman", serif;
   font-size: clamp(2rem, 4vw, 3.2rem);
   font-weight: 900;
   line-height: 1.18;
