@@ -610,7 +610,7 @@ function updateStudentTopActions(step) {
     think: { prev: false, next: "제출" },
     wonder: { prev: false, next: "제출" },
     combined: { prev: false, next: "제출" },
-    summary: { prev: false, next: "제출" },
+    summary: { prev: false, next: "제출", hideNext: true },
     waiting: { prev: false, next: "대기 중", hideNext: true },
   };
   const action = topActionByStep[step] || topActionByStep.student;
@@ -636,9 +636,16 @@ function updateStudentSubmitState() {
   }
 
   elements.topNextButton.disabled = !isAnswerStep || !hasCurrentStudentInput();
+  updateSummarySubmitButtonState();
   if (elements.studentResultButton) {
     elements.studentResultButton.hidden = !hasSubmittedCurrentStudentStep();
   }
+}
+
+function updateSummarySubmitButtonState() {
+  const button = elements.summaryList?.querySelector("[data-summary-submit]");
+  if (!button) return;
+  button.disabled = currentStudentStep !== "summary" || !hasCurrentStudentInput();
 }
 
 function hasCurrentStudentInput() {
@@ -806,9 +813,16 @@ function renderSummaryRows(value = "") {
     <article class="summary-reading-card">
       ${renderSummaryReadingText(summaryText)}
     </article>
+    <div class="summary-submit-row">
+      <button class="primary-button summary-submit-button" type="button" data-summary-submit>제출</button>
+    </div>
   `;
   elements.summaryList.append(row);
+  row.querySelector("[data-summary-submit]")?.addEventListener("click", () => {
+    submitCurrentStudentStep();
+  });
   resizeTextareas(row);
+  updateSummarySubmitButtonState();
 }
 
 function closeConfirmModal() {
@@ -2384,7 +2398,6 @@ function renderSummaryResultPanel() {
   const panel = document.createElement("section");
   panel.className = "teacher-dashboard-panel teacher-status-panel summary-result-panel";
   panel.innerHTML = `
-    <h2>번호별 결과</h2>
     <div class="teacher-student-grid summary-student-grid">
       ${Array.from({ length: studentCount }, (_, index) => {
         const studentName = `${index + 1}번`;
