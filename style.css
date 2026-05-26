@@ -1446,6 +1446,11 @@ textarea:not(:focus):not(:placeholder-shown) {
   background: #eef8eb;
 }
 
+.summary-headline-input:not(:focus):not(:placeholder-shown) {
+  border-color: #000000;
+  background: var(--block-cream);
+}
+
 .see-item:not(:focus):not(:placeholder-shown) {
   border-color: var(--see-line);
   background: transparent;
