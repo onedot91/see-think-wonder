@@ -1538,7 +1538,11 @@ function renderSummaryText() {
   }
   if (currentStudentStep === "summary") {
     if (summaryMode === "lesson") {
-      renderSummaryRows(getSummaryInputValue());
+      const summaryCard = elements.summaryList.querySelector(".summary-response-card");
+      const hasReadingCard = Boolean(elements.summaryList.querySelector(".summary-reading-card"));
+      if (!summaryCard?.classList.contains("is-lesson") || hasReadingCard) {
+        renderSummaryRows(getSummaryInputValue());
+      }
       return;
     }
     const readingCard = elements.summaryList.querySelector(".summary-reading-card");
