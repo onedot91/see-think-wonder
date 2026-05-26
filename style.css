@@ -881,9 +881,17 @@ textarea {
 }
 
 .summary-response-card.is-lesson .summary-headline-input {
-  min-height: min(460px, 58vh);
+  min-height: 148px;
+  padding-top: 30px;
+  padding-bottom: 30px;
   border-bottom-width: 2px;
   border-radius: 18px;
+}
+
+.summary-response-card.is-lesson .summary-submit-button {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
 }
 
 .summary-reading-card {
