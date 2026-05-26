@@ -361,7 +361,7 @@ async function submitSummaryStep() {
     return;
   }
   if (!headline) {
-    showToast("글의 헤드라인을 써 주세요.");
+    showToast(getSummaryHeadlinePrompt());
     return;
   }
 
@@ -848,7 +848,7 @@ function renderSummaryRows(value = "") {
   row.className = `summary-response-card is-${summaryMode}`;
   row.innerHTML = `
     <label class="summary-headline-field">
-      <textarea class="summary-item summary-headline-input" rows="1" maxlength="120" placeholder="글의 헤드라인을 써 주세요." autocomplete="off">${escapeHtml(value)}</textarea>
+      <textarea class="summary-item summary-headline-input" rows="1" maxlength="120" placeholder="${escapeAttribute(getSummaryHeadlinePrompt())}" autocomplete="off">${escapeHtml(value)}</textarea>
       <button class="primary-button summary-submit-button" type="button" data-summary-submit>제출</button>
     </label>
     ${summaryMode === "writing" ? `<article class="summary-reading-card"></article>` : ""}
@@ -1537,6 +1537,10 @@ function renderSummaryText() {
     setSummaryEditorText(summaryText);
   }
   if (currentStudentStep === "summary") {
+    if (summaryMode === "lesson") {
+      renderSummaryRows(getSummaryInputValue());
+      return;
+    }
     const readingCard = elements.summaryList.querySelector(".summary-reading-card");
     if (readingCard) {
       startSummaryTypingAnimation(readingCard, summaryText);
@@ -1590,6 +1594,10 @@ function getSelectedSummaryMode() {
 
 function isSummaryMode(value) {
   return value === "writing" || value === "lesson";
+}
+
+function getSummaryHeadlinePrompt() {
+  return summaryMode === "lesson" ? "이번 수업의 헤드라인을 써주세요." : "글의 헤드라인을 써 주세요.";
 }
 
 function insertPlainText(text) {
