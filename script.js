@@ -6,6 +6,7 @@ const activeStepSettingId = "active_step";
 const activeModeSettingId = "active_mode";
 const classImageSettingId = "class_image";
 const summaryTextSettingId = "summary_text";
+const summaryModeSettingId = "summary_mode";
 const summaryHeadlineMarker = "__headline__";
 const presentationLockSettingId = "presentation_lock";
 const responseClearCutoffSettingId = "response_clear_cutoff";
@@ -45,8 +46,10 @@ const elements = {
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
   teacherStwStartButton: document.querySelector("#teacherStwStartButton"),
   teacherSummaryStartButton: document.querySelector("#teacherSummaryStartButton"),
+  summaryTextPanel: document.querySelector("#summaryTextPanel"),
   summaryTextInput: document.querySelector("#summaryTextInput"),
   summaryTextStatus: document.querySelector("#summaryTextStatus"),
+  summaryModeInputs: document.querySelectorAll("input[name='summaryMode']"),
   summaryStartButton: document.querySelector("#summaryStartButton"),
   teacherModeChoiceButtons: document.querySelectorAll("[data-open-teacher-mode]"),
   classImageInput: document.querySelector("#classImageInput"),
@@ -95,6 +98,7 @@ let activeClassStep = "see";
 let activeClassMode = null;
 let classImageDataUrl = "";
 let summaryText = "";
+let summaryMode = "writing";
 let activePresentationLock = false;
 let responseClearCutoff = "";
 let modalMode = "student";
@@ -202,6 +206,15 @@ elements.summaryTextInput?.addEventListener("paste", (event) => {
   event.preventDefault();
   const text = event.clipboardData?.getData("text/plain") || "";
   insertPlainText(text);
+});
+
+elements.summaryModeInputs.forEach((input) => {
+  input.addEventListener("change", () => {
+    if (input.checked && isSummaryMode(input.value)) {
+      summaryMode = input.value;
+      renderSummaryMode();
+    }
+  });
 });
 
 elements.summaryStartButton?.addEventListener("click", () => {
@@ -477,6 +490,7 @@ async function showTeacherSummarySetupView() {
   closeSummaryTextLightbox();
   savePresentationLockSetting(false).catch(() => {});
   await setClassWaitingMode();
+  await refreshSummaryMode();
   await refreshSummaryText();
   elements.roleView.hidden = true;
   elements.teacherStartView.hidden = true;
@@ -534,6 +548,7 @@ async function showTeacherView(selectedMode = null) {
   }
   await refreshActiveClassStep({ renderStudent: false });
   await refreshClassImage();
+  await refreshSummaryMode();
   await refreshSummaryText();
   activeTeacherStep = activeClassStep;
   await refreshResponses();
@@ -727,6 +742,7 @@ async function goFromStudentToSee() {
   saveSelectedStudentNumber(selectedStudentNumber);
   await refreshActiveClassMode({ renderStudent: false });
   await refreshClassImage();
+  await refreshSummaryMode();
   await refreshSummaryText();
   await loadSelectedStudentResponse();
   const entryStep = getStudentEntryStep();
@@ -829,16 +845,20 @@ function renderCombinedRows(values = {}) {
 function renderSummaryRows(value = "") {
   elements.summaryList.innerHTML = "";
   const row = document.createElement("div");
-  row.className = "summary-response-card";
+  row.className = `summary-response-card is-${summaryMode}`;
   row.innerHTML = `
     <label class="summary-headline-field">
       <textarea class="summary-item summary-headline-input" rows="1" maxlength="120" placeholder="글의 헤드라인을 써 주세요." autocomplete="off">${escapeHtml(value)}</textarea>
       <button class="primary-button summary-submit-button" type="button" data-summary-submit>제출</button>
     </label>
-    <article class="summary-reading-card"></article>
+    ${summaryMode === "writing" ? `<article class="summary-reading-card"></article>` : ""}
   `;
   elements.summaryList.append(row);
-  startSummaryTypingAnimation(row.querySelector(".summary-reading-card"), summaryText, { restart: true });
+  if (summaryMode === "writing") {
+    startSummaryTypingAnimation(row.querySelector(".summary-reading-card"), summaryText, { restart: true });
+  } else {
+    stopSummaryTypingAnimation();
+  }
   row.querySelector("[data-summary-submit]")?.addEventListener("click", () => {
     submitCurrentStudentStep();
   });
@@ -1227,6 +1247,7 @@ function startTeacherPolling() {
     await refreshActiveClassMode({ renderStudent: false });
     await refreshActiveClassStep({ renderStudent: false });
     await refreshClassImage();
+    await refreshSummaryMode();
     await refreshSummaryText();
     await refreshSummaryResponses();
     refreshResponses();
@@ -1246,6 +1267,7 @@ function startStudentStepPolling() {
       refreshActiveClassMode();
       refreshActiveClassStep();
       refreshClassImage();
+      refreshSummaryMode();
       refreshSummaryText();
       refreshPresentationLock();
     }
@@ -1294,6 +1316,7 @@ async function refreshActiveClassStep(options = {}) {
   }
 
   if (activeClassMode === "summary") {
+    await refreshSummaryMode();
     await refreshSummaryText();
     if (renderStudent && !elements.studentWaitingView.hidden) {
       showStudentAnswerView("summary");
@@ -1444,12 +1467,19 @@ async function registerSummaryText(options = {}) {
 }
 
 async function startSummaryClass() {
-  const registered = await registerSummaryText({ silent: true });
-  if (!registered) {
-    return;
+  const selectedMode = getSelectedSummaryMode();
+  if (selectedMode === "writing") {
+    const registered = await registerSummaryText({ silent: true });
+    if (!registered) {
+      return;
+    }
+  } else if (summaryTextSaveTimer) {
+    clearTimeout(summaryTextSaveTimer);
+    summaryTextSaveTimer = null;
   }
 
   try {
+    await saveSummaryModeSetting(selectedMode);
     await saveActiveClassMode("summary");
     await refreshResponses();
     await showTeacherView("summary");
@@ -1472,6 +1502,36 @@ async function refreshSummaryText() {
   return summaryText;
 }
 
+async function refreshSummaryMode() {
+  const previousMode = summaryMode;
+
+  try {
+    summaryMode = await loadSummaryModeSetting();
+  } catch {
+    summaryMode = previousMode;
+  }
+
+  const hasSelectedInput = Array.from(elements.summaryModeInputs).some((input) => input.checked && input.value === summaryMode);
+  if (summaryMode !== previousMode || !hasSelectedInput) {
+    renderSummaryMode();
+  }
+  return summaryMode;
+}
+
+function renderSummaryMode() {
+  elements.summaryModeInputs.forEach((input) => {
+    input.checked = input.value === summaryMode;
+  });
+  if (elements.summaryTextPanel) {
+    elements.summaryTextPanel.hidden = summaryMode === "lesson";
+  }
+
+  if (currentStudentStep === "summary") {
+    renderSummaryRows(getSummaryInputValue());
+  }
+  renderSummaryTextStatus();
+}
+
 function renderSummaryText() {
   if (elements.summaryTextInput && getSummaryEditorText() !== summaryText) {
     setSummaryEditorText(summaryText);
@@ -1480,8 +1540,8 @@ function renderSummaryText() {
     const readingCard = elements.summaryList.querySelector(".summary-reading-card");
     if (readingCard) {
       startSummaryTypingAnimation(readingCard, summaryText);
-    } else {
-      renderSummaryRows();
+    } else if (summaryMode === "writing") {
+      renderSummaryRows(getSummaryInputValue());
     }
   }
   renderSummaryTextStatus();
@@ -1490,6 +1550,10 @@ function renderSummaryText() {
 function renderSummaryTextStatus(state = {}) {
   if (!elements.summaryTextStatus) return;
   const inputText = getSummaryEditorText();
+  if (summaryMode === "lesson") {
+    elements.summaryTextStatus.textContent = "수업 모드에서는 글 없이 시작합니다.";
+    return;
+  }
   if (!inputText) {
     elements.summaryTextStatus.textContent = "글을 입력해 주세요.";
     return;
@@ -1517,6 +1581,15 @@ function getSummaryEditorText() {
 function setSummaryEditorText(value) {
   if (!elements.summaryTextInput) return;
   elements.summaryTextInput.innerHTML = renderSummaryReadingText(value, { emptyText: "" });
+}
+
+function getSelectedSummaryMode() {
+  const selectedInput = Array.from(elements.summaryModeInputs).find((input) => input.checked);
+  return isSummaryMode(selectedInput?.value) ? selectedInput.value : "writing";
+}
+
+function isSummaryMode(value) {
+  return value === "writing" || value === "lesson";
 }
 
 function insertPlainText(text) {
@@ -1680,6 +1753,53 @@ async function saveSummaryTextSetting(value) {
 
   if (existingRows[0]) {
     await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(summaryTextSettingId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    return;
+  }
+
+  await supabaseRequest(`/${supabaseSettingsTable}`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function loadSummaryModeSetting() {
+  if (!isSupabaseReady()) {
+    return summaryMode;
+  }
+
+  const rows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(summaryModeSettingId)}&select=value&limit=1`
+  );
+  const mode = rows[0]?.value;
+  return isSummaryMode(mode) ? mode : "writing";
+}
+
+async function saveSummaryModeSetting(value) {
+  if (!isSummaryMode(value)) return;
+  summaryMode = value;
+  renderSummaryMode();
+
+  if (!isSupabaseReady()) {
+    return;
+  }
+
+  const payload = {
+    id: summaryModeSettingId,
+    value,
+    updated_at: new Date().toISOString(),
+  };
+
+  const existingRows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(summaryModeSettingId)}&select=id&limit=1`
+  );
+
+  if (existingRows[0]) {
+    await supabaseRequest(`/${supabaseSettingsTable}?id=eq.${encodeURIComponent(summaryModeSettingId)}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify(payload),
@@ -2504,7 +2624,10 @@ function renderTeacherDashboard() {
 function renderSummaryDashboard() {
   const dashboard = document.createElement("section");
   dashboard.className = "teacher-dashboard is-summary";
-  dashboard.append(renderSummaryTextPanel(), renderSummaryDashboardBody());
+  if (summaryMode === "writing") {
+    dashboard.append(renderSummaryTextPanel());
+  }
+  dashboard.append(renderSummaryDashboardBody());
   return dashboard;
 }
 

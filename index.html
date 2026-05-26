@@ -36,7 +36,7 @@
         <header class="view-head teacher-mode-head">
           <h1>헤드라인</h1>
         </header>
-        <section class="teacher-upload-panel teacher-text-upload-panel">
+        <section class="teacher-upload-panel teacher-text-upload-panel" id="summaryTextPanel">
           <div>
             <h2>수업 글</h2>
             <p id="summaryTextStatus">글을 입력해 주세요.</p>
@@ -49,6 +49,22 @@
             aria-multiline="true"
             data-placeholder="수업에서 사용할 글을 넣어 주세요."
           ></div>
+        </section>
+        <section class="teacher-summary-mode-panel" aria-labelledby="summaryModeTitle">
+          <div>
+            <h2 id="summaryModeTitle">헤드라인 모드</h2>
+            <p>학생 화면에 보여 줄 방식을 선택해 주세요.</p>
+          </div>
+          <div class="summary-mode-options" role="radiogroup" aria-labelledby="summaryModeTitle">
+            <label class="summary-mode-option">
+              <input type="radio" name="summaryMode" value="writing" checked />
+              <span>글 모드</span>
+            </label>
+            <label class="summary-mode-option">
+              <input type="radio" name="summaryMode" value="lesson" />
+              <span>수업 모드</span>
+            </label>
+          </div>
         </section>
         <button class="teacher-start-choice is-summary" id="summaryStartButton" type="button">
           <span>시작</span>
