@@ -2826,7 +2826,7 @@ function buildResponsesExportHtml(exportedAt, mode) {
     wonder: countStepAnswers("wonder", submittedResponses),
     combined: submittedResponses.reduce((sum, response) => sum + normalizeCombinedList(response.combined).length, 0),
   };
-  const exportTitle = isCombinedExport ? "한 번에 작성 결과" : "순차 진행 결과";
+  const exportModeLabel = isCombinedExport ? "한 번에 작성" : "순차 진행";
   const exportSummary = isCombinedExport
     ? `<span>제출 학생 ${combinedResponses.length}명</span><span>한 번에 작성 ${stepCounts.combined}개</span>`
     : `<span>제출 학생 ${sequentialResponses.length}명</span><span>보기 ${stepCounts.see}개</span><span>생각하기 ${stepCounts.think}개</span><span>궁금해하기 ${stepCounts.wonder}개</span>`;
@@ -2841,35 +2841,61 @@ function buildResponsesExportHtml(exportedAt, mode) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>사고루틴 결과</title>
   <style>
-    body { margin: 0; padding: 32px; color: #111; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.55; }
-    h1 { margin: 0 0 8px; font-size: 32px; }
-    h2 { margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 2px solid #111; font-size: 24px; }
-    h3 { margin: 18px 0 8px; font-size: 18px; }
-    .meta, .summary { color: #444; }
-    .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 24px; }
-    .summary span { padding: 6px 10px; border: 1px solid #ccc; border-radius: 999px; }
-    .class-image { width: min(720px, 100%); margin: 24px 0; padding: 12px; border: 2px solid #111; border-radius: 12px; }
-    .class-image img { display: block; width: 100%; border-radius: 8px; object-fit: contain; }
-    .export-section { margin-top: 36px; }
-    .student { break-inside: avoid; margin: 22px 0; padding: 18px; border: 2px solid #111; border-radius: 12px; }
-    .student-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; margin-bottom: 10px; }
-    .student-name { font-size: 22px; font-weight: 800; }
-    .submitted-at { color: #555; font-size: 14px; }
-    ol { margin: 0 0 10px 24px; padding: 0; }
-    li { margin: 5px 0; }
-    .combined-item { margin: 8px 0; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; }
-    .empty { color: #777; }
-    @media print { body { padding: 18mm; } .student { break-inside: avoid; } }
+    :root { --ink: #111; --muted: #555; --line: #d9d9d9; --soft: #f7f7f5; --lime: #dceeb1; --lilac: #d8ccfb; --cream: #f4ecd6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 36px; color: var(--ink); background: #fff; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.55; }
+    .page { max-width: 1120px; margin: 0 auto; }
+    .export-header { display: grid; gap: 14px; padding-bottom: 22px; border-bottom: 3px solid var(--ink); }
+    h1 { margin: 0; font-size: clamp(34px, 5vw, 56px); line-height: 1.05; letter-spacing: 0; }
+    .meta-row { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 16px; font-weight: 700; }
+    .meta-chip { width: fit-content; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: #fff; }
+    .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+    .summary span { padding: 10px 16px; border: 2px solid var(--ink); border-radius: 999px; background: var(--soft); font-size: 17px; font-weight: 800; }
+    .overview { display: grid; grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr); gap: 24px; align-items: start; margin: 28px 0; }
+    .overview.has-no-image { grid-template-columns: 1fr; }
+    .class-image { margin: 0; padding: 12px; border: 2px solid var(--ink); border-radius: 16px; background: #fff; }
+    .class-image img { display: block; width: 100%; max-height: 430px; border-radius: 10px; object-fit: contain; }
+    .export-section { min-width: 0; }
+    h2 { margin: 0 0 14px; padding: 16px 20px; border: 2px solid var(--ink); border-radius: 16px; background: var(--cream); font-size: 26px; line-height: 1.1; }
+    h3 { margin: 0 0 8px; font-size: 17px; font-weight: 900; }
+    .student-list { display: grid; gap: 14px; }
+    .student { break-inside: avoid; padding: 18px; border: 2px solid var(--ink); border-radius: 16px; background: #fff; }
+    .student-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+    .student-name { font-size: 24px; line-height: 1.1; font-weight: 900; }
+    .submitted-at { color: var(--muted); font-size: 14px; font-weight: 700; }
+    .answer-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .answer-block { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); }
+    .answer-block.is-see { background: var(--lime); }
+    .answer-block.is-think { background: var(--lilac); }
+    .answer-block.is-wonder { background: var(--cream); }
+    ol { margin: 0; padding-left: 22px; }
+    li { margin: 5px 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 650; }
+    .combined-list { display: grid; gap: 10px; }
+    .combined-item { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); }
+    .combined-line { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 10px; }
+    .combined-label { font-weight: 900; }
+    .empty { margin: 0; color: #777; font-weight: 700; }
+    @media (max-width: 900px) { body { padding: 22px; } .overview { grid-template-columns: 1fr; } .answer-grid { grid-template-columns: 1fr; } }
+    @media print { body { padding: 14mm; } .page { max-width: none; } .student { break-inside: avoid; } .overview { grid-template-columns: 1fr; } .class-image img { max-height: 300px; } }
   </style>
 </head>
 <body>
-  <h1>사고루틴 ${exportTitle}</h1>
-  <div class="meta">내보낸 시간: ${escapeHtml(formatReadableDate(exportedAt))}</div>
-  <div class="summary">
-    ${exportSummary}
-  </div>
-  ${mode !== "summary" && classImageDataUrl ? `<figure class="class-image"><img src="${escapeAttribute(classImageDataUrl)}" alt="수업 사진"></figure>` : ""}
-  ${exportBody}
+  <main class="page">
+    <header class="export-header">
+      <h1>사고루틴 결과</h1>
+      <div class="meta-row">
+        <span class="meta-chip">진행 방식: ${escapeHtml(exportModeLabel)}</span>
+        <span class="meta-chip">내보낸 시간: ${escapeHtml(formatReadableDate(exportedAt))}</span>
+      </div>
+      <div class="summary">
+        ${exportSummary}
+      </div>
+    </header>
+    <div class="overview ${mode !== "summary" && classImageDataUrl ? "" : "has-no-image"}">
+      ${mode !== "summary" && classImageDataUrl ? `<figure class="class-image"><img src="${escapeAttribute(classImageDataUrl)}" alt="수업 사진"></figure>` : ""}
+      ${exportBody}
+    </div>
+  </main>
 </body>
 </html>`;
 }
@@ -2878,7 +2904,9 @@ function renderSequentialExportBody(responsesForExport) {
   return `
   <section class="export-section">
     <h2>순차 진행</h2>
-    ${responsesForExport.length === 0 ? `<p class="empty">저장할 순차 진행 결과가 없습니다.</p>` : responsesForExport.map((response, index) => renderSequentialExportSection(response, index)).join("")}
+    <div class="student-list">
+      ${responsesForExport.length === 0 ? `<p class="empty">저장할 순차 진행 결과가 없습니다.</p>` : responsesForExport.map((response, index) => renderSequentialExportSection(response, index)).join("")}
+    </div>
   </section>`;
 }
 
@@ -2886,7 +2914,9 @@ function renderCombinedExportBody(responsesForExport) {
   return `
   <section class="export-section">
     <h2>한 번에 작성</h2>
-    ${responsesForExport.length === 0 ? `<p class="empty">저장할 한 번에 작성 결과가 없습니다.</p>` : responsesForExport.map((response, index) => renderCombinedResponseExportSection(response, index)).join("")}
+    <div class="student-list">
+      ${responsesForExport.length === 0 ? `<p class="empty">저장할 한 번에 작성 결과가 없습니다.</p>` : responsesForExport.map((response, index) => renderCombinedResponseExportSection(response, index)).join("")}
+    </div>
   </section>`;
 }
 
@@ -2901,9 +2931,11 @@ function renderSequentialExportSection(response, index) {
       <span class="student-name">${index + 1}. ${escapeHtml(response.name)}</span>
       <span class="submitted-at">제출: ${escapeHtml(formatReadableDate(response.createdAt))}</span>
     </div>
-    ${renderExportList("보기", seeItems)}
-    ${renderExportList("생각하기", thinkItems)}
-    ${renderExportList("궁금해하기", wonderItems)}
+    <div class="answer-grid">
+      ${renderExportList("보기", seeItems, "see")}
+      ${renderExportList("생각하기", thinkItems, "think")}
+      ${renderExportList("궁금해하기", wonderItems, "wonder")}
+    </div>
   </section>`;
 }
 
@@ -2918,12 +2950,13 @@ function renderCombinedResponseExportSection(response, index) {
   </section>`;
 }
 
-function renderExportList(label, values) {
+function renderExportList(label, values, tone = "") {
+  const toneClass = tone ? ` is-${tone}` : "";
   if (values.length === 0) {
-    return `<h3>${label}</h3><p class="empty">미제출</p>`;
+    return `<section class="answer-block${toneClass}"><h3>${label}</h3><p class="empty">미제출</p></section>`;
   }
 
-  return `<h3>${label}</h3><ol>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ol>`;
+  return `<section class="answer-block${toneClass}"><h3>${label}</h3><ol>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ol></section>`;
 }
 
 function renderCombinedExportList(values) {
@@ -2931,13 +2964,13 @@ function renderCombinedExportList(values) {
     return `<h3>한 번에 작성</h3><p class="empty">미제출</p>`;
   }
 
-  return `<h3>한 번에 작성</h3>${values.map((value) => `
-    <div class="combined-item">
-      <div><strong>보기:</strong> ${escapeHtml(value.see)}</div>
-      <div><strong>생각하기:</strong> ${escapeHtml(value.think)}</div>
-      <div><strong>궁금해하기:</strong> ${escapeHtml(value.wonder)}</div>
-    </div>
-  `).join("")}`;
+  return `<h3>한 번에 작성</h3><div class="combined-list">${values.map((value) => `
+    <section class="combined-item">
+      <div class="combined-line"><span class="combined-label">보기</span><span>${escapeHtml(value.see)}</span></div>
+      <div class="combined-line"><span class="combined-label">생각하기</span><span>${escapeHtml(value.think)}</span></div>
+      <div class="combined-line"><span class="combined-label">궁금해하기</span><span>${escapeHtml(value.wonder)}</span></div>
+    </section>
+  `).join("")}</div>`;
 }
 
 function countStepAnswers(step, submittedResponses = getSubmittedStudentResponses()) {
