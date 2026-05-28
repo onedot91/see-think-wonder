@@ -2612,6 +2612,17 @@ button {
   padding: 22px 28px;
 }
 
+.teacher-view-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.teacher-back-button {
+  flex: 0 0 auto;
+  min-width: 132px;
+}
+
 .view-head h1 {
   font-size: clamp(3.1rem, 5vw, 5rem);
   font-weight: 900;
@@ -3139,6 +3150,11 @@ textarea,
     grid-template-columns: 1fr;
     gap: 16px;
     min-height: 0;
+  }
+
+  .teacher-view-titlebar {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .teacher-mode-choice-grid {

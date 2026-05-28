@@ -46,6 +46,7 @@ const elements = {
   teacherRoleButton: document.querySelector("#teacherRoleButton"),
   teacherStwStartButton: document.querySelector("#teacherStwStartButton"),
   teacherSummaryStartButton: document.querySelector("#teacherSummaryStartButton"),
+  teacherBackButtons: document.querySelectorAll("[data-teacher-back]"),
   summaryTextPanel: document.querySelector("#summaryTextPanel"),
   summaryTextInput: document.querySelector("#summaryTextInput"),
   summaryTextStatus: document.querySelector("#summaryTextStatus"),
@@ -128,6 +129,12 @@ elements.studentRoleButton.addEventListener("click", () => showStudentView());
 elements.teacherModeChoiceButtons.forEach((button) => {
   button.addEventListener("click", () => {
     showTeacherView(button.dataset.openTeacherMode);
+  });
+});
+
+elements.teacherBackButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    goBackFromTeacherScreen(button.dataset.teacherBack);
   });
 });
 
@@ -461,6 +468,26 @@ function showRoleView() {
 
 function isReturnToStartShortcut(event) {
   return event.ctrlKey && event.altKey && event.key === "Enter" && !event.isComposing;
+}
+
+function goBackFromTeacherScreen(target) {
+  if (target === "role") {
+    showRoleView();
+    return;
+  }
+
+  if (target === "start") {
+    showTeacherStartView();
+    return;
+  }
+
+  if (target === "setup") {
+    if (activeClassMode === "summary") {
+      showTeacherSummarySetupView();
+    } else {
+      showTeacherModeView();
+    }
+  }
 }
 
 async function showTeacherStartView() {

@@ -21,6 +21,7 @@
       <section class="teacher-start-view" id="teacherStartView" hidden>
         <header class="view-head teacher-mode-head">
           <h1>교사 화면</h1>
+          <button class="secondary-button teacher-back-button" type="button" data-teacher-back="role">처음</button>
         </header>
         <div class="teacher-start-choice-grid">
           <button class="teacher-start-choice is-stw" id="teacherStwStartButton" type="button">
@@ -35,6 +36,7 @@
       <section class="teacher-summary-setup-view" id="teacherSummarySetupView" hidden>
         <header class="view-head teacher-mode-head">
           <h1>헤드라인</h1>
+          <button class="secondary-button teacher-back-button" type="button" data-teacher-back="start">뒤로</button>
         </header>
         <section class="teacher-upload-panel teacher-text-upload-panel" id="summaryTextPanel">
           <div>
@@ -74,6 +76,7 @@
       <section class="teacher-mode-view" id="teacherModeView" hidden>
         <header class="view-head teacher-mode-head">
           <h1>진행 방식</h1>
+          <button class="secondary-button teacher-back-button" type="button" data-teacher-back="start">뒤로</button>
         </header>
         <section class="teacher-upload-panel">
           <div>
@@ -99,7 +102,10 @@
 
       <section class="app-view" id="teacherView" hidden>
         <header class="view-head">
-          <h1><span id="teacherClearTrigger" title="관리 버튼 표시">결</span>과</h1>
+          <div class="teacher-view-titlebar">
+            <h1><span id="teacherClearTrigger" title="관리 버튼 표시">결</span>과</h1>
+            <button class="secondary-button teacher-back-button" type="button" data-teacher-back="setup">뒤로</button>
+          </div>
           <div class="teacher-mode-tabs" id="teacherModeTabs"></div>
           <div class="teacher-top-tabs" id="teacherTopTabs"></div>
         </header>
