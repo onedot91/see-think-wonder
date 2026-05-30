@@ -166,6 +166,12 @@ elements.changeRoleButtons.forEach((button) => {
 });
 
 elements.studentForm.addEventListener("input", (event) => {
+  if (isStudentPresentationLocked()) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
   if (event.target instanceof HTMLTextAreaElement) {
     resizeTextarea(event.target);
     updateSingleResponseInputState(event.target);
@@ -174,6 +180,12 @@ elements.studentForm.addEventListener("input", (event) => {
 });
 
 elements.studentForm.addEventListener("keydown", (event) => {
+  if (isStudentPresentationLocked()) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
   if (event.target === elements.studentNumberInput && event.key === "Enter" && !event.isComposing) {
     event.preventDefault();
     goToNextStudentStep();
@@ -189,10 +201,12 @@ elements.studentForm.addEventListener("keydown", (event) => {
 });
 
 elements.topPrevButton?.addEventListener("click", () => {
+  if (isStudentPresentationLocked()) return;
   goToPreviousStudentStep();
 });
 
 elements.topNextButton.addEventListener("click", () => {
+  if (isStudentPresentationLocked()) return;
   goToNextStudentStep();
 });
 
@@ -229,10 +243,17 @@ elements.summaryStartButton?.addEventListener("click", () => {
 });
 
 elements.studentClassImageCard?.addEventListener("click", () => {
+  if (isStudentPresentationLocked()) return;
   openClassImageLightbox();
 });
 
 elements.studentClassImageCard?.addEventListener("keydown", (event) => {
+  if (isStudentPresentationLocked()) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
   if (event.key !== "Enter" && event.key !== " ") return;
   event.preventDefault();
   openClassImageLightbox();
@@ -267,6 +288,12 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (isStudentPresentationLocked() && isStudentInteractionTarget(event.target)) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
   if (event.key === "Escape" && elements.classImageLightbox && !elements.classImageLightbox.hidden) {
     closeClassImageLightbox();
   }
@@ -276,12 +303,26 @@ document.addEventListener("keydown", (event) => {
   }
 }, { capture: true });
 
+document.addEventListener("beforeinput", (event) => {
+  if (!isStudentPresentationLocked() || !isStudentInteractionTarget(event.target)) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, { capture: true });
+
+document.addEventListener("paste", (event) => {
+  if (!isStudentPresentationLocked() || !isStudentInteractionTarget(event.target)) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, { capture: true });
+
 elements.studentResultButton?.addEventListener("click", () => {
+  if (isStudentPresentationLocked()) return;
   openStudentResults();
 });
 
 elements.studentForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (isStudentPresentationLocked()) return;
   submitCurrentStudentStep();
 });
 
@@ -1205,6 +1246,8 @@ function focusSummaryInput() {
 }
 
 function focusCurrentStepInput() {
+  if (isStudentPresentationLocked()) return;
+
   const focusByStep = {
     see: focusFirstSeeInput,
     think: focusFirstThinkInput,
@@ -2021,7 +2064,22 @@ async function refreshPresentationLock() {
 
 function renderPresentationLock() {
   if (!elements.studentFocusModal) return;
-  elements.studentFocusModal.hidden = !activePresentationLock || elements.studentView.hidden;
+  const isLocked = isStudentPresentationLocked();
+  elements.studentFocusModal.hidden = !isLocked;
+  elements.studentView.inert = isLocked;
+  elements.studentView.classList.toggle("is-presentation-locked", isLocked);
+
+  if (isLocked && elements.studentView.contains(document.activeElement)) {
+    document.activeElement.blur();
+  }
+}
+
+function isStudentPresentationLocked() {
+  return Boolean(activePresentationLock && elements.studentView && !elements.studentView.hidden);
+}
+
+function isStudentInteractionTarget(target) {
+  return target instanceof Node && Boolean(elements.studentView?.contains(target));
 }
 
 async function loadPresentationLockSetting() {
