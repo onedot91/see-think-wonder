@@ -336,6 +336,11 @@ elements.modalBackButton.addEventListener("click", () => {
 });
 
 elements.modalSubmitButton.addEventListener("click", () => {
+  if (modalMode === "student-submit") {
+    performConfirmedStudentSubmit();
+    return;
+  }
+
   closeConfirmModal();
 });
 
@@ -361,7 +366,12 @@ function loadSelectedStudentResponse() {
   renderEmptyStepInputs();
 }
 
-async function submitCurrentStudentStep() {
+function submitCurrentStudentStep() {
+  if (!validateCurrentStudentSubmit()) return;
+  openStudentSubmitConfirmModal();
+}
+
+async function performCurrentStudentStepSubmit() {
   if (currentStudentStep === "summary") {
     await submitSummaryStep();
     return;
@@ -380,6 +390,16 @@ async function submitCurrentStudentStep() {
   }
   if (currentStudentStep === "wonder") {
     await submitWonderStep();
+  }
+}
+
+async function performConfirmedStudentSubmit() {
+  elements.modalSubmitButton.disabled = true;
+  try {
+    closeConfirmModal();
+    await performCurrentStudentStepSubmit();
+  } finally {
+    elements.modalSubmitButton.disabled = false;
   }
 }
 
@@ -959,12 +979,119 @@ function closeConfirmModal() {
   elements.confirmModal.classList.remove("teacher-tools-locked");
   elements.confirmModal.classList.remove("student-results-modal");
   elements.confirmModal.classList.remove("teacher-answer-modal");
+  elements.confirmModal.classList.remove("student-submit-modal");
   elements.modalSentenceList.innerHTML = "";
   elements.modalBackButton.hidden = false;
+  elements.modalBackButton.textContent = "수정하기";
   elements.modalSubmitButton.textContent = "닫기";
+  elements.modalSubmitButton.disabled = false;
   if (shouldReleasePresentationLock) {
     savePresentationLockSetting(false).catch(() => {});
   }
+}
+
+function validateCurrentStudentSubmit() {
+  if (currentStudentStep === "summary") {
+    if (!getStudentName()) {
+      showToast("학생 번호를 입력해 주세요.");
+      return false;
+    }
+    if (!getSummaryInputValue()) {
+      showToast(getSummaryHeadlinePrompt());
+      return false;
+    }
+    return true;
+  }
+
+  if (currentStudentStep === "combined") {
+    if (!getStudentName()) {
+      showToast("학생 번호를 입력해 주세요.");
+      return false;
+    }
+    if (!isCompleteCombinedItem(getCombinedInputValues())) {
+      showToast("보기, 생각하기, 궁금해하기를 모두 적어 주세요.");
+      return false;
+    }
+    return true;
+  }
+
+  if (currentStudentStep === "see") {
+    if (!getStudentName()) {
+      showToast("학생 번호를 입력해 주세요.");
+      return false;
+    }
+    if (!getStepInputValue("see")) {
+      showToast("보이는 것을 써 주세요.");
+      return false;
+    }
+    return true;
+  }
+
+  if (currentStudentStep === "think") {
+    if (!getStudentName()) {
+      showToast("학생 번호를 입력해 주세요.");
+      return false;
+    }
+    if (!getStepInputValue("think")) {
+      showToast("생각한 것을 써 주세요.");
+      return false;
+    }
+    return true;
+  }
+
+  if (currentStudentStep === "wonder") {
+    if (!getStudentName()) {
+      showToast("학생 번호를 입력해 주세요.");
+      return false;
+    }
+    const validation = validateWonderQuestion(elements.wonderList.querySelector(".wonder-item")?.value || "");
+    if (!validation.valid) {
+      showToast(validation.message);
+      elements.wonderList.querySelector(".wonder-item")?.focus();
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function openStudentSubmitConfirmModal() {
+  modalMode = "student-submit";
+  document.querySelector("#confirmModalTitle").textContent = "이대로 제출할까요?";
+  elements.modalBackButton.hidden = false;
+  elements.modalBackButton.textContent = "수정하기";
+  elements.modalSubmitButton.textContent = "제출";
+  elements.confirmModal.classList.remove("teacher-tools-locked");
+  elements.confirmModal.classList.remove("student-results-modal");
+  elements.confirmModal.classList.remove("teacher-answer-modal");
+  elements.confirmModal.classList.add("student-submit-modal");
+  elements.modalSentenceList.innerHTML = renderStudentSubmitPreview();
+  elements.confirmModal.hidden = false;
+  elements.modalSubmitButton.focus();
+}
+
+function renderStudentSubmitPreview() {
+  if (currentStudentStep === "combined") {
+    const item = getCombinedInputValues();
+    return `
+      <article class="student-submit-preview">
+        ${renderReadonlyCombinedSentence(item)}
+      </article>
+    `;
+  }
+
+  const value = currentStudentStep === "summary"
+    ? getSummaryInputValue()
+    : currentStudentStep === "wonder"
+      ? normalizeWonderQuestion(getStepInputValue("wonder"))
+      : getStepInputValue(currentStudentStep);
+
+  return `
+    <article class="student-submit-preview">
+      <p>${escapeHtml(value)}</p>
+    </article>
+  `;
 }
 
 function openClassImageLightbox() {
