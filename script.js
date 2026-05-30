@@ -10,6 +10,7 @@ const summaryModeSettingId = "summary_mode";
 const summaryHeadlineMarker = "__headline__";
 const presentationLockSettingId = "presentation_lock";
 const responseClearCutoffSettingId = "response_clear_cutoff";
+const answerOrderSettingId = "answer_order";
 const savedStudentNumberKey = "stw_student_number";
 const savedRoleKey = "stw_role";
 const teacherRoleValue = "teacher";
@@ -170,6 +171,10 @@ elements.studentForm.addEventListener("input", (event) => {
     event.preventDefault();
     event.stopPropagation();
     return;
+  }
+
+  if (event.target instanceof HTMLTextAreaElement && event.target.classList.contains("wonder-item")) {
+    normalizeWonderInputDuringEdit(event.target);
   }
 
   if (event.target instanceof HTMLTextAreaElement) {
@@ -471,7 +476,20 @@ async function submitThinkStep() {
 }
 
 async function submitWonderStep() {
-  const wonderItem = getStepInputValue("wonder");
+  const wonderInput = elements.wonderList.querySelector(".wonder-item");
+  const validation = validateWonderQuestion(wonderInput?.value || "");
+  if (!validation.valid) {
+    showToast(validation.message);
+    wonderInput?.focus();
+    return;
+  }
+
+  const wonderItem = normalizeWonderQuestion(wonderInput?.value || "");
+  if (wonderInput) {
+    wonderInput.value = wonderItem;
+    resizeTextarea(wonderInput);
+    updateSingleResponseInputState(wonderInput);
+  }
   if (!wonderItem) {
     showToast("궁금한 것을 써 주세요.");
     return;
@@ -1042,6 +1060,47 @@ function getCombinedInputValues() {
     think: elements.combinedList.querySelector(".combined-think-item")?.value.trim() || "",
     wonder: elements.combinedList.querySelector(".combined-wonder-item")?.value.trim() || "",
   };
+}
+
+function normalizeWonderQuestion(value) {
+  const text = String(value || "").trim().replace(/[?？]+/g, "").trim();
+  return text ? `${text}?` : "";
+}
+
+function validateWonderQuestion(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return { valid: false, message: "궁금한 것을 써 주세요." };
+  }
+
+  const questionMarks = text.match(/[?？]/g) || [];
+  if (questionMarks.length === 0) {
+    return { valid: false, message: "물음표(?)로 끝나야 제출할 수 있어요." };
+  }
+
+  if (questionMarks.length > 1) {
+    return { valid: false, message: "물음표는 맨 끝에 하나만 써 주세요." };
+  }
+
+  if (!/[?？]\s*$/.test(text)) {
+    return { valid: false, message: "물음표(?)는 답변 맨 끝에만 써 주세요." };
+  }
+
+  if (!text.replace(/[?？]+/g, "").trim()) {
+    return { valid: false, message: "궁금한 내용을 함께 써 주세요." };
+  }
+
+  return { valid: true, message: "" };
+}
+
+function normalizeWonderInputDuringEdit(input) {
+  const questionCount = (input.value.match(/[?？]/g) || []).length;
+  if (questionCount <= 1) return;
+
+  const nextValue = normalizeWonderQuestion(input.value);
+  if (nextValue === input.value) return;
+
+  input.value = nextValue;
 }
 
 function getSummaryInputValue() {
@@ -2363,16 +2422,18 @@ async function appendStudentStep(step, value) {
   await refreshResponsesCache();
   const studentName = getStudentName();
   const existingResponse = getResponseByStudentName(studentName);
-  const existingValues = normalizeList(existingResponse?.[step]).filter(Boolean);
-  return await saveStudentStep(step, [...existingValues, value]);
+  const existingValues = normalizeStepEntries(existingResponse?.[step], existingResponse?.createdAt);
+  const submissionOrder = await claimNextAnswerOrder();
+  return await saveStudentStep(step, [...existingValues, createStepAnswer(value, new Date().toISOString(), submissionOrder)]);
 }
 
 async function appendCombinedStep(value) {
   await refreshResponsesCache();
   const studentName = getStudentName();
   const existingResponse = getResponseByStudentName(studentName);
-  const existingValues = normalizeCombinedList(existingResponse?.combined);
-  return await saveCombinedStep([...existingValues, value]);
+  const existingValues = normalizeCombinedList(existingResponse?.combined, existingResponse?.createdAt);
+  const submissionOrder = await claimNextAnswerOrder();
+  return await saveCombinedStep([...existingValues, createCombinedAnswer(value, new Date().toISOString(), submissionOrder)]);
 }
 
 async function refreshResponsesCache() {
@@ -2419,6 +2480,20 @@ async function saveResponseClearCutoffSetting(value) {
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify(payload),
   });
+}
+
+async function claimNextAnswerOrder() {
+  if (!isSupabaseReady()) {
+    return Date.now();
+  }
+
+  const rows = await supabaseRequest(
+    `/${supabaseSettingsTable}?id=eq.${encodeURIComponent(answerOrderSettingId)}&select=value&limit=1`
+  );
+  const currentOrder = Number.parseInt(rows[0]?.value || "0", 10);
+  const nextOrder = Number.isFinite(currentOrder) ? currentOrder + 1 : 1;
+  await saveSettingsValue(answerOrderSettingId, String(nextOrder));
+  return nextOrder;
 }
 
 async function saveCombinedStep(values) {
@@ -2582,7 +2657,8 @@ async function deleteStepAnswer(responseId, step, answerIndex) {
     throw new Error("Answer not found");
   }
 
-  const nextValues = normalizeList(originalResponse[step]).filter((_, index) => index !== answerIndex);
+  const nextValues = normalizeStepEntries(originalResponse[step], originalResponse.createdAt)
+    .filter((_, index) => index !== answerIndex);
   try {
     const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(responseId)}`, {
       method: "PATCH",
@@ -2610,7 +2686,8 @@ async function deleteCombinedAnswer(responseId, answerIndex) {
     throw new Error("Answer not found");
   }
 
-  const nextValues = normalizeCombinedList(originalResponse.combined).filter((_, index) => index !== answerIndex);
+  const nextValues = normalizeCombinedList(originalResponse.combined, originalResponse.createdAt)
+    .filter((_, index) => index !== answerIndex);
   try {
     const rows = await supabaseRequest(`/${supabaseTable}?id=eq.${encodeURIComponent(responseId)}`, {
       method: "PATCH",
@@ -2679,10 +2756,10 @@ function fromSupabaseRow(row) {
   return {
     id: row.id,
     name: row.name,
-    see: normalizeList(row.see),
-    think: normalizeList(row.think),
-    wonder: normalizeList(row.wonder),
-    combined: normalizeCombinedList(row.combined),
+    see: normalizeStepEntries(row.see, row.created_at),
+    think: normalizeStepEntries(row.think, row.created_at),
+    wonder: normalizeStepEntries(row.wonder, row.created_at),
+    combined: normalizeCombinedList(row.combined, row.created_at),
     summaryHeadline: extractSummaryHeadline(row.combined),
     createdAt: row.created_at,
   };
@@ -3287,6 +3364,7 @@ function renderCollectedAnswers(step, options = {}) {
               X
             </button>` : ""}
             <div class="postit-content">${card.compact}</div>
+            ${renderPostitStudentBadge(card.studentName)}
           </article>
         `)
         .join("")}
@@ -3318,6 +3396,7 @@ function renderCombinedAnswers(options = {}) {
               X
             </button>` : ""}
             <div class="postit-content combined-card-content">${renderCombinedSentence(card.value)}</div>
+            ${renderPostitStudentBadge(card.studentName)}
           </article>
         `)
         .join("")}
@@ -3350,6 +3429,7 @@ function renderSummaryAnswers(options = {}) {
               X
             </button>` : ""}
             <div class="postit-content"><p>${escapeHtml(card.value)}</p></div>
+            ${renderPostitStudentBadge(card.studentName)}
           </article>
         `)
         .join("")}
@@ -3360,13 +3440,22 @@ function renderSummaryAnswers(options = {}) {
 function getCollectedCombinedAnswers() {
   return getSubmittedStudentResponses()
     .flatMap((response) =>
-      normalizeCombinedList(response.combined).map((value, answerIndex) => ({
+      normalizeCombinedList(response.combined, response.createdAt).map((value, answerIndex) => ({
         responseId: response.id,
         studentName: response.name,
         answerIndex,
         value,
+        createdAt: value.createdAt || response.createdAt,
+        submissionOrder: value.submissionOrder,
       }))
-    );
+    )
+    .sort(compareCollectedCards);
+}
+
+function renderPostitStudentBadge(studentName) {
+  const number = parseStudentNumber(studentName);
+  if (!number) return "";
+  return `<span class="postit-student-badge" aria-hidden="true">${number}</span>`;
 }
 
 function getCollectedSummaryAnswers() {
@@ -3407,32 +3496,59 @@ function renderCombinedSentence(item) {
 }
 
 function getCollectedStepAnswers(step) {
-  return getSubmittedStudentResponses().flatMap((response) => buildCollectedStepCards(response, step));
+  return getSubmittedStudentResponses()
+    .flatMap((response) => buildCollectedStepCards(response, step))
+    .sort(compareCollectedCards);
 }
 
 function buildCollectedStepCards(response, step) {
-  const seeItems = normalizeList(response.see);
-  const thinkItems = normalizeList(response.think);
-  const wonderItems = normalizeList(response.wonder);
-  const buildCard = (value, answerIndex, blockClass) => ({
+  const seeItems = normalizeStepEntries(response.see, response.createdAt);
+  const thinkItems = normalizeStepEntries(response.think, response.createdAt);
+  const wonderItems = normalizeStepEntries(response.wonder, response.createdAt);
+  const buildCard = (entry, answerIndex, blockClass) => ({
     responseId: response.id,
     studentName: response.name,
     step,
     answerIndex,
-    cardClass: getPostitLengthClass(value),
-    compact: `<p>${escapeHtml(value)}</p>`,
-    large: `<p><span class="sentence-block ${blockClass}">${escapeHtml(value)}</span></p>`,
+    createdAt: entry.createdAt || response.createdAt,
+    submissionOrder: entry.submissionOrder,
+    cardClass: getPostitLengthClass(entry.value),
+    compact: `<p>${escapeHtml(entry.value)}</p>`,
+    large: `<p><span class="sentence-block ${blockClass}">${escapeHtml(entry.value)}</span></p>`,
   });
 
   if (step === "see") {
-    return seeItems.map((value, index) => ({ value, index })).filter((item) => item.value).map((item) => buildCard(item.value, item.index, "see-block"));
+    return seeItems.map((entry, index) => ({ entry, index })).map((item) => buildCard(item.entry, item.index, "see-block"));
   }
 
   if (step === "think") {
-    return thinkItems.map((value, index) => ({ value, index })).filter((item) => item.value).map((item) => buildCard(item.value, item.index, "think-block"));
+    return thinkItems.map((entry, index) => ({ entry, index })).map((item) => buildCard(item.entry, item.index, "think-block"));
   }
 
-  return wonderItems.map((value, index) => ({ value, index })).filter((item) => item.value).map((item) => buildCard(item.value, item.index, "wonder-block"));
+  return wonderItems.map((entry, index) => ({ entry, index })).map((item) => buildCard(item.entry, item.index, "wonder-block"));
+}
+
+function compareCollectedCards(first, second) {
+  const firstOrder = Number(first.submissionOrder);
+  const secondOrder = Number(second.submissionOrder);
+  const hasFirstOrder = Number.isFinite(firstOrder);
+  const hasSecondOrder = Number.isFinite(secondOrder);
+  if (hasFirstOrder && hasSecondOrder && firstOrder !== secondOrder) return firstOrder - secondOrder;
+  if (hasFirstOrder !== hasSecondOrder) return hasFirstOrder ? 1 : -1;
+
+  const firstAnswerIndex = Number.isInteger(first.answerIndex) ? first.answerIndex : 0;
+  const secondAnswerIndex = Number.isInteger(second.answerIndex) ? second.answerIndex : 0;
+  if (firstAnswerIndex !== secondAnswerIndex) return firstAnswerIndex - secondAnswerIndex;
+
+  const firstTime = Date.parse(first.createdAt || "") || 0;
+  const secondTime = Date.parse(second.createdAt || "") || 0;
+  if (firstTime !== secondTime) return firstTime - secondTime;
+
+  const firstStudent = parseStudentNumber(first.studentName);
+  const secondStudent = parseStudentNumber(second.studentName);
+  if (firstStudent !== secondStudent) return firstStudent - secondStudent;
+
+  return (first.answerIndex || 0) - (second.answerIndex || 0);
 }
 
 function getPostitLengthClass(value) {
@@ -3699,10 +3815,13 @@ function getSubmittedStudentResponses() {
 }
 
 function isStudentName(name) {
-  const match = /^(\d+)번$/.exec(name || "");
-  if (!match) return false;
-  const number = Number(match[1]);
+  const number = parseStudentNumber(name);
   return number >= 1 && number <= studentCount;
+}
+
+function parseStudentNumber(name) {
+  const match = /^(\d+)번$/.exec(name || "");
+  return match ? Number(match[1]) : 0;
 }
 
 function getStudentName() {
@@ -3718,18 +3837,66 @@ function normalizeStudentNumber(value) {
 }
 
 function normalizeList(value) {
-  return Array.isArray(value) ? value : value ? [value] : [];
+  return normalizeStepEntries(value).map((item) => item.value);
 }
 
-function normalizeCombinedList(value) {
+function normalizeStepEntries(value, fallbackCreatedAt = "") {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return values
+    .map((item) => {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        return createStepAnswer(
+          item.value ?? item.text ?? "",
+          item.createdAt || item.created_at || fallbackCreatedAt,
+          item.submissionOrder ?? item.submission_order
+        );
+      }
+      return createStepAnswer(item, fallbackCreatedAt);
+    })
+    .filter((item) => item.value);
+}
+
+function createStepAnswer(value, createdAt = new Date().toISOString(), submissionOrder = null) {
+  return {
+    value: String(value || "").trim(),
+    createdAt: normalizeTimestamp(createdAt),
+    ...(normalizeSubmissionOrder(submissionOrder) ? { submissionOrder: normalizeSubmissionOrder(submissionOrder) } : {}),
+  };
+}
+
+function normalizeCombinedList(value, fallbackCreatedAt = "") {
   if (!Array.isArray(value)) return [];
   return value
     .map((item) => ({
       see: String(item?.see || "").trim(),
       think: String(item?.think || "").trim(),
       wonder: String(item?.wonder || "").trim(),
+      createdAt: normalizeTimestamp(item?.createdAt || item?.created_at || fallbackCreatedAt),
+      ...(normalizeSubmissionOrder(item?.submissionOrder ?? item?.submission_order)
+        ? { submissionOrder: normalizeSubmissionOrder(item?.submissionOrder ?? item?.submission_order) }
+        : {}),
     }))
     .filter(isCompleteCombinedItem);
+}
+
+function createCombinedAnswer(value, createdAt = new Date().toISOString(), submissionOrder = null) {
+  return {
+    see: String(value?.see || "").trim(),
+    think: String(value?.think || "").trim(),
+    wonder: String(value?.wonder || "").trim(),
+    createdAt: normalizeTimestamp(createdAt),
+    ...(normalizeSubmissionOrder(submissionOrder) ? { submissionOrder: normalizeSubmissionOrder(submissionOrder) } : {}),
+  };
+}
+
+function normalizeTimestamp(value) {
+  const time = Date.parse(value || "");
+  return Number.isFinite(time) ? new Date(time).toISOString() : new Date().toISOString();
+}
+
+function normalizeSubmissionOrder(value) {
+  const order = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(order) && order > 0 ? order : null;
 }
 
 function extractSummaryHeadline(value) {

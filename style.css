@@ -1882,13 +1882,13 @@ button {
 
 .teacher-postit-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   align-items: stretch;
 }
 
 .combined-postit-grid {
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .postit-card {
@@ -1957,6 +1957,19 @@ button {
 
 .postit-card.is-removing .postit-delete-button {
   opacity: 0;
+}
+
+.postit-student-badge {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  color: #000000;
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+  opacity: 0.28;
+  pointer-events: none;
 }
 
 .teacher-dashboard.is-think .postit-card {
